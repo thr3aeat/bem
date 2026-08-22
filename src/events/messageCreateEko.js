@@ -7,6 +7,10 @@ const {
 } = require('../modules/ekoUtils');
 const { sendLog } = require('../modules/embedBuilders');
 
+const crypto = require('crypto');
+const JsonDatabase = require('../modules/jsonDatabase');
+const ekoImageHashesDb = new JsonDatabase('ekoImageHashes.json');
+
 module.exports = {
     name: Events.MessageCreate,
     async execute(message, client) {
@@ -14,6 +18,76 @@ module.exports = {
         if (message.guildId !== EKO_GUILD_ID) return;
         if (message.channelId !== EKO_KANAL_ID) return;
         if (!ekoFotografVarMi(message)) return;
+
+        // --- Görsel URL tespiti ---
+        let resimUrl = null;
+        const a = message.attachments.first();
+        if (a) {
+            resimUrl = a.url;
+        } else {
+            const urlRegex = /https?:\/\/\S+\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?[^\s]*)?/i;
+            const match = message.content.match(urlRegex);
+            if (match) resimUrl = match[0];
+        }
+
+        // --- Görsel Kopyalama / Çalıntı Kontrolü (SHA-256 Hash) ---
+        if (resimUrl) {
+            try {
+                const response = await fetch(resimUrl);
+                if (response.ok) {
+                    const arrayBuffer = await response.arrayBuffer();
+                    const hash = crypto.createHash('sha256').update(Buffer.from(arrayBuffer)).digest('hex');
+                    const existingRecord = ekoImageHashesDb.get(hash);
+
+                    if (existingRecord) {
+                        // Birebir aynı görsel tespit edildi!
+                        try {
+                            await message.delete().catch(() => {});
+                        } catch {}
+
+                        const warningMsg = await message.channel.send({
+                            content: `❌ ${message.author.toString()} **Başkalarının görselini kopyalayamazsınız!**`
+                        }).catch(() => null);
+
+                        if (warningMsg) {
+                            setTimeout(() => warningMsg.delete().catch(() => {}), 10000);
+                        }
+
+                        // Log kanalına uyarısını gönder
+                        try {
+                            const { EmbedBuilder } = require('discord.js');
+                            const warnEmbed = new EmbedBuilder()
+                                .setColor('#FF0000')
+                                .setTitle('⚠️ Görsel Kopyalama Engellendi')
+                                .setDescription(
+                                    `**<@${message.author.id}>** (\`${message.author.tag}\`), daha önce ` +
+                                    (existingRecord.userId === message.author.id ? 'kendisi' : `**<@${existingRecord.userId}>**`) +
+                                    ` tarafından yüklenmiş olan görselin **birebir kopyasını** yüklemeye çalıştı.\n\n` +
+                                    `🚫 Mesaj otomatik silindi ve onay/rol işlemi engellendi.`
+                                )
+                                .addFields(
+                                    { name: '👤 Kullanıcı', value: `<@${message.author.id}> (\`${message.author.id}\`)`, inline: true },
+                                    { name: '📅 Orijinal Yükleme', value: `<t:${Math.floor(existingRecord.timestamp / 1000)}:R>`, inline: true }
+                                )
+                                .setTimestamp();
+                            await sendLog(client, warnEmbed);
+                        } catch {}
+
+                        console.warn(`[⚠️ EKO GÖRSEL KOPYALAMA] ${message.author.tag} (${message.author.id}) kopyalanmış görsel attı. Hash: ${hash}`);
+                        return; // İşlemi tamamen iptal et
+                    }
+
+                    // Yeni görsel - hash'i kaydet
+                    ekoImageHashesDb.set(hash, {
+                        userId: message.author.id,
+                        messageId: message.id,
+                        timestamp: Date.now()
+                    });
+                }
+            } catch (hashErr) {
+                console.error('[EKO] Görsel hash kontrolünde hata:', hashErr.message);
+            }
+        }
 
         // --- Üye bilgisini al ---
         let member;

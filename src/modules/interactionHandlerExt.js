@@ -225,6 +225,75 @@ async function handleCustomInteraction(interaction, client) {
             return;
         }
 
+        // --- Roblox DM: Girdim / Tekrar Kontrol Et ---
+        if (customId.startsWith('roblox_dm_verify_')) {
+            const userId = customId.split('_')[3];
+            if (interaction.user.id !== userId) {
+                return interaction.reply({ content: '❌ Bu buton sadece bildirim gönderilen kullanıcıya aittir.', flags: 64 });
+            }
+
+            await interaction.deferReply({ flags: 64 });
+
+            try {
+                const robloxChecksDb = new JsonDatabase('robloxChecks.json');
+                const entry = robloxChecksDb.get(userId);
+                if (!entry) {
+                    return interaction.editReply({ content: '❌ Kayıtlı bir Roblox kontrol bilginiz bulunamadı.' });
+                }
+
+                const { KAYIT_GRUP_ID, KAYIT_GUILD_ID, KAYIT_DISCORD_ROL_ID } = require('./constants');
+                const { getUserRankInGroup } = require('./robloxApi');
+
+                const rankData = await getUserRankInGroup(entry.robloxUserId, KAYIT_GRUP_ID);
+                const isInGroup = rankData && rankData.rank > 0;
+
+                if (isInGroup) {
+                    // Kullanıcı gruba girmiş -> Rolünü ver ve sonraki kontrolü artırarak planla
+                    const guild = client.guilds.cache.get(KAYIT_GUILD_ID);
+                    if (guild) {
+                        const member = await guild.members.fetch(userId).catch(() => null);
+                        if (member) {
+                            const rol = guild.roles.cache.get(KAYIT_DISCORD_ROL_ID);
+                            if (rol && !member.roles.cache.has(KAYIT_DISCORD_ROL_ID)) {
+                                await member.roles.add(rol, 'Roblox grup kontrolü: DM üzerinden katılım doğrulandı');
+                            }
+                        }
+                    }
+
+                    const currentDays = entry.intervalDays || 14;
+                    const nextDays = currentDays + 14;
+                    entry.intervalDays = nextDays;
+                    entry.checkAt = Date.now() + (nextDays * 24 * 60 * 60 * 1000);
+                    entry.status = 'pending';
+                    entry.lastCheckedAt = Date.now();
+                    entry.consecutiveChecks = (entry.consecutiveChecks || 0) + 1;
+                    robloxChecksDb.set(userId, entry);
+
+                    await interaction.editReply({
+                        content: `✅ **Harika! Roblox grubuna katıldığınız başarıyla doğrulandı.**\n\n🎉 <@&${KAYIT_DISCORD_ROL_ID}> rolünüz hesabınıza tekrar tanımlandı!\n📅 Bir sonraki rutin kontrolünüz **${nextDays} gün** sonra yapılacaktır.`
+                    });
+
+                    // Log kanalına bildir
+                    const logEmbed = new EmbedBuilder()
+                        .setColor('#00FF88')
+                        .setTitle('✅ Roblox DM Doğrulama Başarılı')
+                        .setDescription(`**<@${userId}>** (\`${userId}\`) kullanıcısı DM üzerinden **'Girdim'** butonuna bastı ve Roblox grubunda olduğu doğrulanarak rolü (<@&${KAYIT_DISCORD_ROL_ID}>) geri verildi.\n\n📅 **Sonraki Kontrol:** <t:${Math.floor(entry.checkAt / 1000)}:R> (**${nextDays} gün sonra**)`)
+                        .setTimestamp();
+                    await sendSystemLog(client, { embeds: [logEmbed] });
+
+                } else {
+                    // Kullanıcı hala grupta değil
+                    await interaction.editReply({
+                        content: `❌ **Roblox grubunda henüz bulunmuyorsunuz!**\n\nLütfen önce [Eko Yıldız Roblox Grubu](https://www.roblox.com/communities/${KAYIT_GRUP_ID}) bağlantısına tıklayarak gruba katılın, ardından tekrar **'Girdim / Tekrar Kontrol Et'** butonuna basın.`
+                    });
+                }
+            } catch (err) {
+                console.error('[ROBLOX DM VERIFY HATA]', err);
+                await interaction.editReply({ content: '❌ Kontrol yapılırken bir hata oluştu. Lütfen birazdan tekrar deneyin.' });
+            }
+            return;
+        }
+
         // --- Roblox: Evet Hala Grupta ---
         if (customId.startsWith('roblox_still_in_group_')) {
             await interaction.deferUpdate();
