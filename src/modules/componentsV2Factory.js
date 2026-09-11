@@ -228,28 +228,48 @@ class ComponentsV2Factory {
      */
     static buildSubscriberV2(data) {
         const { member, fotoSayi, yeniAbone, ekoRoleId } = data;
-        const color = yeniAbone ? 0x00FF88 : 0xFFD700;
+        const { getAktifOzelGun } = require('./ozelGunler');
+        const aktifOzelGun = getAktifOzelGun();
+
+        let color = yeniAbone ? 0x00FF88 : 0xFFD700;
+        if (aktifOzelGun && aktifOzelGun.accentColor) {
+            color = aktifOzelGun.accentColor;
+        }
+
         const avatarUrl = member.user.displayAvatarURL({ dynamic: true, size: 256 });
+        const roleName = (ekoRoleId && member.guild?.roles?.cache?.get(ekoRoleId)?.name) || '⭐ Eko Yıldız Abone';
+
+        let sectionContent;
+        if (yeniAbone) {
+            if (aktifOzelGun && typeof aktifOzelGun.aboneTebrikAciklama === 'function') {
+                sectionContent = `## ${aktifOzelGun.aboneBaslik || '🎉 Yeni Eko Yıldız Abonesi!'}\n` +
+                    aktifOzelGun.aboneTebrikAciklama(member.user.username, roleName);
+            } else {
+                sectionContent = `## 🎉 Yeni Eko Yıldız Abonesi!\n**${member.user.username}** YouTube kanalımıza abone olarak **${roleName}** rolünü kazandı! ⭐`;
+            }
+        } else {
+            sectionContent = `## 📸 Fotoğraf Paylaşımı\n**${member.user.username}** yeni bir ekran görüntüsü paylaştı.`;
+        }
+
+        const footerText = aktifOzelGun
+            ? `-# ${aktifOzelGun.emoji} ${aktifOzelGun.name} Özel Yayını • Sentura Eko Yıldız Abone Otomasyonu • <t:${Math.floor(Date.now() / 1000)}:R>`
+            : `-# Sentura Eko Yıldız Abone Otomasyonu • <t:${Math.floor(Date.now() / 1000)}:R>`;
 
         return {
             flags: FLAGS_V2,
+            allowedMentions: { parse: ['users'] },
             components: [
                 this.container(color, [
-                    this.section(
-                        yeniAbone
-                            ? `## 🎉 Yeni Eko Yıldız Abonesi!\n**${member.user.username}** YouTube kanalımıza abone olarak **<@&${ekoRoleId}>** rolünü kazandı! ⭐`
-                            : `## 📸 Fotoğraf Paylaşımı\n**${member.user.username}** yeni bir ekran görüntüsü paylaştı.`,
-                        avatarUrl
-                    ),
+                    this.section(sectionContent, avatarUrl),
                     this.separator(true),
                     this.text(
                         `👤 **Abone:** ${member.user.toString()} (\`${member.user.tag}\`)\n` +
                         `📸 **Paylaşılan Fotoğraf:** **${fotoSayi} Adet**\n` +
-                        `🎭 **Tanımlanan Rol:** <@&${ekoRoleId}>\n` +
+                        `🎭 **Tanımlanan Rol:** **${roleName}**\n` +
                         `📅 **Tarih:** <t:${Math.floor(Date.now() / 1000)}:F>`
                     ),
                     this.separator(false),
-                    this.text(`-# Sentura Eko Yıldız Abone Otomasyonu • <t:${Math.floor(Date.now() / 1000)}:R>`)
+                    this.text(footerText)
                 ])
             ]
         };

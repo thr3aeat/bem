@@ -15,7 +15,11 @@ const client = new Client({
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.GuildMessageReactions,
         GatewayIntentBits.MessageContent
-    ]
+    ],
+    allowedMentions: {
+        parse: ['users'],
+        repliedUser: false
+    }
 });
 
 client.commands = new Collection();

@@ -42,7 +42,7 @@ module.exports = {
             .setThumbnail(hedef.displayAvatarURL({ dynamic: true, size: 256 }))
             .addFields(
                 { name: '👤 Kullanıcı', value: `${hedef.toString()} (\`${hedef.id}\`)`, inline: true },
-                { name: '🎭 Eko Abone Rolü', value: abone ? `<@&${EKO_ROL_ID}> (✅ Mevcut)` : '❌ Rol Yok', inline: true },
+                { name: '🎭 Eko Abone Rolü', value: abone ? '⭐ Eko Yıldız Abone (✅ Mevcut)' : '❌ Rol Yok', inline: true },
                 { name: '📸 Toplam Fotoğraf', value: `${veri ? veri.totalPhotos : 0} Adet`, inline: true },
                 { name: '📅 Son Fotoğraf Tarihi', value: sonPaylasim, inline: false }
             )
@@ -60,7 +60,7 @@ module.exports = {
                 )
                 .addTextDisplayComponents(
                     new TextDisplayBuilder().setContent(
-                        `🎭 **Abone Rolü (<@&${EKO_ROL_ID}>)** — ${abone ? '✅ Mevcut' : '❌ Yok'}\n` +
+                        `🎭 **Abone Rolü (⭐ Eko Yıldız Abone)** — ${abone ? '✅ Mevcut' : '❌ Yok'}\n` +
                         `📸 **Paylaşılan Fotoğraf** — ${veri ? veri.totalPhotos : 0} Adet\n` +
                         `📅 **Son Fotoğraf Paylaşımı** — ${sonPaylasim}`
                     )

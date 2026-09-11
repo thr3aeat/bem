@@ -24,13 +24,22 @@ module.exports = {
 
             const hesapYasi = `<t:${Math.floor(member.user.createdTimestamp / 1000)}:R>`;
 
+            const { getAktifOzelGun } = require('../modules/ozelGunler');
+            const aktifOzelGun = getAktifOzelGun();
+
+            const accentColor = (aktifOzelGun && aktifOzelGun.accentColor) ? aktifOzelGun.accentColor : 0x00FF88;
+            const welcomeText = (aktifOzelGun && typeof aktifOzelGun.welcomeBanner === 'function')
+                ? aktifOzelGun.welcomeBanner(member.user.toString(), member.guild.name)
+                : `## 👋 Hoş Geldin, ${member.user.toString()}!\n**${member.guild.name}** ailesine katıldın! 🎉`;
+
+            const footerText = aktifOzelGun
+                ? `-# ${aktifOzelGun.emoji} ${aktifOzelGun.name} • Sentura 🦸 ekoyildiz • <t:${Math.floor(Date.now() / 1000)}:R>`
+                : `-# Sentura 🦸 ekoyildiz • <t:${Math.floor(Date.now() / 1000)}:R>`;
+
             const container = new ContainerBuilder()
-                .setAccentColor(0x00FF88)
+                .setAccentColor(accentColor)
                 .addTextDisplayComponents(
-                    new TextDisplayBuilder().setContent(
-                        `## 👋 Hoş Geldin, ${member.user.toString()}!\n` +
-                        `**${member.guild.name}** ailesine katıldın! 🎉`
-                    )
+                    new TextDisplayBuilder().setContent(welcomeText)
                 )
                 .addSeparatorComponents(
                     new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true)
@@ -46,9 +55,7 @@ module.exports = {
                     new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(false)
                 )
                 .addTextDisplayComponents(
-                    new TextDisplayBuilder().setContent(
-                        `-# Sentura 🦸 ekoyildiz • <t:${Math.floor(Date.now() / 1000)}:R>`
-                    )
+                    new TextDisplayBuilder().setContent(footerText)
                 );
 
             await channel.send({

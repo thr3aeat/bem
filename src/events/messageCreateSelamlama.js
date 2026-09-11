@@ -64,8 +64,16 @@ module.exports = {
 
         selamlamaCooldown.set(cooldownKey, Date.now());
 
-        const havuz = cevapHavuzu[eslesen.tip];
-        const cevap = rastgeleCevap(havuz, message.member?.displayName || message.author.username);
+        const username = message.member?.displayName || message.author.username;
+        const { getOzelGunSelamMesaji } = require('../modules/ozelGunler');
+        
+        // Özel gün varsa öncelikle özel gün selam havuzundan çek
+        let cevap = getOzelGunSelamMesaji(eslesen.tip, username);
+        
+        if (!cevap) {
+            const havuz = cevapHavuzu[eslesen.tip];
+            cevap = rastgeleCevap(havuz, username);
+        }
 
         if (cevap) {
             try {
