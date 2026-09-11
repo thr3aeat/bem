@@ -15,6 +15,14 @@ module.exports = {
         
         // Komutları otomatik kaydet
         await deployCommands();
+
+        // Bot çevrim dışıyken oluşmuş ceza kayıtlarını aktif yetkililere dağıt.
+        const { dispatchWaitingCases } = require('../modules/moderationQueue');
+        for (const guild of client.guilds.cache.values()) {
+            await dispatchWaitingCases(guild).catch(error => {
+                console.error('[❌] Başlangıç ceza sırası dağıtımı başarısız:', error);
+            });
+        }
         
         client.user.setActivity('Sentura 🦸 ekoyildiz | /yardim', { type: 4 });
 

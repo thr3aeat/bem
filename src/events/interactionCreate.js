@@ -90,6 +90,16 @@ module.exports = {
             }
 
         } else if (interaction.isButton()) {
+            if (interaction.customId.startsWith('modq_') || ['modanasayfa', 'mod_anasayfa'].includes(interaction.customId)) {
+                const { handleModerationQueueInteraction } = require('../modules/moderationQueue');
+                try {
+                    await handleModerationQueueInteraction(interaction, client);
+                } catch (error) {
+                    console.error('[❌] Ceza sırası buton hatası:', error);
+                    await interaction.reply({ content: '❌ Ceza sırası işlenirken bir hata oluştu.', flags: 64 }).catch(() => {});
+                }
+                return;
+            }
             const isCustom = [
                 'eko_approve_', 'eko_reject_', 'roblox_still_in_group_', 'roblox_not_in_group_',
                 'user_rate_btn', 'user_reply_btn', 'user_end_btn', 'mod_reply_btn_', 'mod_end_btn_',
@@ -115,6 +125,16 @@ module.exports = {
                 }
             }
         } else if (interaction.isModalSubmit()) {
+            if (interaction.customId === 'modq_report_submit') {
+                const { handleModerationQueueInteraction } = require('../modules/moderationQueue');
+                try {
+                    await handleModerationQueueInteraction(interaction, client);
+                } catch (error) {
+                    console.error('[❌] Ceza sırası modal hatası:', error);
+                    await interaction.reply({ content: '❌ Ceza sırası işlenirken bir hata oluştu.', flags: 64 }).catch(() => {});
+                }
+                return;
+            }
             const { handleCustomInteraction } = require('../modules/interactionHandlerExt');
             try {
                 await handleCustomInteraction(interaction, client);
