@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const {
     getActiveModerators,
+    getNextModerator,
     getState,
     makePanelComponents,
     makeQueueEmbed,
@@ -13,8 +14,9 @@ module.exports = {
         .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
     async execute(interaction) {
         const activeModerators = await getActiveModerators(interaction.guild);
+        const nextModerator = await getNextModerator(interaction.guild);
         await interaction.reply({
-            embeds: [makeQueueEmbed(getState(), activeModerators)],
+            embeds: [makeQueueEmbed(getState(), activeModerators, interaction.guildId, nextModerator)],
             components: makePanelComponents(),
             flags: 64,
         });

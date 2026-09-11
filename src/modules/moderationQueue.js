@@ -11,7 +11,7 @@ const JsonDatabase = require('./jsonDatabase');
 const configManager = require('./configManager');
 
 const db = new JsonDatabase('moderation-queue.json');
-const dispatchLocks = new Map();
+const assignmentLocks = new Map();
 
 function getState() {
     return db.get('state') || { lastAssignedId: null, nextId: 1, cases: [] };
@@ -27,25 +27,40 @@ function isActive(member) {
 
 function canUseQueue(interaction) {
     const staffRoleId = configManager.get('ALLOWED_ROLE_ID');
-    return interaction.guild && interaction.member?.roles?.cache?.has(staffRoleId);
+    const allowedGuildId = configManager.get('ALLOWED_GUILD_ID');
+    return interaction.guildId === allowedGuildId && interaction.member?.roles?.cache?.has(staffRoleId);
 }
 
-async function getActiveModerators(guild) {
+async function getModerators(guild) {
     const staffRoleId = configManager.get('ALLOWED_ROLE_ID');
     const members = await guild.members.fetch().catch(() => guild.members.cache);
 
     return [...members.values()]
-        .filter(member => !member.user.bot && member.roles.cache.has(staffRoleId) && isActive(member))
+        .filter(member => !member.user.bot && member.roles.cache.has(staffRoleId))
         .sort((a, b) => a.joinedTimestamp - b.joinedTimestamp);
 }
 
-async function assignNextModerator(guild) {
-    const moderators = await getActiveModerators(guild);
-    if (!moderators.length) return null;
+async function getActiveModerators(guild) {
+    return (await getModerators(guild)).filter(isActive);
+}
 
-    const state = getState();
+async function getNextModerator(guild, state = getState()) {
+    const moderators = await getModerators(guild);
+    const activeModeratorIds = new Set(moderators.filter(isActive).map(member => member.id));
+    if (!activeModeratorIds.size) return null;
+
     const previousIndex = moderators.findIndex(member => member.id === state.lastAssignedId);
-    const moderator = moderators[(previousIndex + 1 + moderators.length) % moderators.length];
+    for (let offset = 1; offset <= moderators.length; offset++) {
+        const moderator = moderators[(previousIndex + offset + moderators.length) % moderators.length];
+        if (activeModeratorIds.has(moderator.id)) return moderator;
+    }
+    return null;
+}
+
+async function assignNextModerator(guild) {
+    const state = getState();
+    const moderator = await getNextModerator(guild, state);
+    if (!moderator) return null;
     state.lastAssignedId = moderator.id;
     saveState(state);
     return moderator;
@@ -63,14 +78,23 @@ async function notifyModerator(moderator, caseItem) {
         )
         .setTimestamp();
 
-    return moderator.send({ embeds: [assignmentEmbed] }).catch(() => null);
+    const components = [new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`modq_complete_${caseItem.id}`).setLabel('Tamamlandı').setEmoji('✅').setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId(`modq_handoff_${caseItem.id}`).setLabel('Devret').setEmoji('🔁').setStyle(ButtonStyle.Secondary),
+    )];
+    return moderator.send({ embeds: [assignmentEmbed], components }).then(() => true).catch(() => false);
 }
 
-// Çevrim dışıyken oluşan kayıtları ilk aktif yetkili geldiğinde sırayla dağıtır.
-async function dispatchWaitingCases(guild) {
-    if (dispatchLocks.has(guild.id)) return dispatchLocks.get(guild.id);
+function withAssignmentLock(guildId, work) {
+    const previous = assignmentLocks.get(guildId) || Promise.resolve();
+    const current = previous.catch(() => {}).then(work);
+    assignmentLocks.set(guildId, current);
+    return current.finally(() => {
+        if (assignmentLocks.get(guildId) === current) assignmentLocks.delete(guildId);
+    });
+}
 
-    const dispatch = (async () => {
+async function dispatchWaitingCasesUnlocked(guild) {
     const state = getState();
     const waitingCases = state.cases.filter(item => item.guildId === guild.id && item.status === 'waiting');
 
@@ -80,24 +104,27 @@ async function dispatchWaitingCases(guild) {
         caseItem.moderatorId = moderator.id;
         caseItem.status = 'assigned';
         caseItem.assignedAt = new Date().toISOString();
-        await notifyModerator(moderator, caseItem);
+        if (!await notifyModerator(moderator, caseItem)) {
+            caseItem.moderatorId = null;
+            caseItem.status = 'waiting';
+            continue;
+        }
     }
     saveState(state);
-    })();
-
-    dispatchLocks.set(guild.id, dispatch);
-    try {
-        await dispatch;
-    } finally {
-        dispatchLocks.delete(guild.id);
-    }
 }
 
-function makeQueueEmbed(state, activeModerators) {
-    const waiting = state.cases.filter(item => item.status === 'waiting').length;
-    const assigned = state.cases.filter(item => item.status === 'assigned').length;
-    const next = activeModerators.length
-        ? `<@${activeModerators[0].id}> ve sıradaki aktif yetkililer`
+// Çevrim dışıyken oluşan kayıtları ilk aktif yetkili geldiğinde sırayla dağıtır.
+async function dispatchWaitingCases(guild) {
+    return withAssignmentLock(guild.id, () => dispatchWaitingCasesUnlocked(guild));
+}
+
+function makeQueueEmbed(state, activeModerators, guildId, nextModerator = null) {
+    const guildCases = state.cases.filter(item => item.guildId === guildId);
+    const waiting = guildCases.filter(item => item.status === 'waiting').length;
+    const assigned = guildCases.filter(item => item.status === 'assigned').length;
+    const completed = guildCases.filter(item => item.status === 'completed').length;
+    const next = nextModerator
+        ? `${nextModerator} (sıradaki aktif yetkili)`
         : 'Aktif yetkili yok';
 
     return new EmbedBuilder()
@@ -108,6 +135,7 @@ function makeQueueEmbed(state, activeModerators) {
             { name: '🟢 Aktif yetkililer', value: activeModerators.map(member => member.toString()).join(', ') || 'Yok', inline: false },
             { name: '📥 Bekleyen kayıt', value: String(waiting), inline: true },
             { name: '📌 Atanmış kayıt', value: String(assigned), inline: true },
+            { name: '✅ Tamamlanan kayıt', value: String(completed), inline: true },
             { name: '➡️ Sıradaki havuz', value: next, inline: false },
         )
         .setFooter({ text: 'Aktiflik Discord durumuna göre belirlenir.' })
@@ -127,48 +155,82 @@ async function createCase(interaction) {
     const userId = userInput.replace(/[<@!>]/g, '');
     if (!/^\d{17,20}$/.test(userId)) {
         return interaction.reply({
-            content: '❌ Kullanıcı için Discord ID’sini veya `@kullanıcı` etiketini girin.',
+            content: '❌ Kullanıcı için Discord ID’sini veya `@etiketi` girin.',
             flags: 64,
         });
     }
-    const state = getState();
-    const moderator = await assignNextModerator(interaction.guild);
-    const caseItem = {
-        id: state.nextId++,
-        guildId: interaction.guildId,
-        userId,
-        reason,
-        reporterId: interaction.user.id,
-        moderatorId: moderator?.id || null,
-        status: moderator ? 'assigned' : 'waiting',
-        createdAt: new Date().toISOString(),
-    };
-    state.cases.push(caseItem);
-    saveState(state);
+    return withAssignmentLock(interaction.guildId, async () => {
+        const state = getState();
+        const moderator = await assignNextModerator(interaction.guild);
+        const caseItem = {
+            id: state.nextId++, guildId: interaction.guildId, userId, reason,
+            reporterId: interaction.user.id, moderatorId: moderator?.id || null,
+            status: moderator ? 'assigned' : 'waiting', createdAt: new Date().toISOString(),
+        };
+        state.cases.push(caseItem);
 
-    if (!moderator) {
+        const delivered = moderator && await notifyModerator(moderator, caseItem);
+        if (!delivered) {
+            caseItem.moderatorId = null;
+            caseItem.status = 'waiting';
+            await dispatchWaitingCasesUnlocked(interaction.guild);
+        }
+        saveState(state);
+
         return interaction.reply({
-            content: `⚠️ İhlal kaydı #${caseItem.id} oluşturuldu; ancak şu anda aktif bir yetkili olmadığı için bekleme sırasına alındı.`,
+            content: caseItem.status === 'assigned'
+                ? `✅ İhlal kaydı #${caseItem.id}, sıra sistemindeki aktif yetkili <@${caseItem.moderatorId}> kişisine atandı.`
+                : `⚠️ İhlal kaydı #${caseItem.id} bekleme sırasına alındı. Aktif yetkili yok veya atanan yetkiliye DM gönderilemedi.`,
             flags: 64,
         });
-    }
-
-    await notifyModerator(moderator, caseItem);
-    return interaction.reply({
-        content: `✅ İhlal kaydı #${caseItem.id}, sıra sistemindeki aktif yetkili ${moderator} kişisine atandı.`,
-        flags: 64,
     });
 }
 
-async function handleModerationQueueInteraction(interaction) {
+async function handleAssignedCaseAction(interaction, client) {
+    const match = interaction.customId.match(/^modq_(complete|handoff)_(\d+)$/);
+    if (!match) return false;
+
+    const [, action, caseId] = match;
+    const state = getState();
+    const caseItem = state.cases.find(item => String(item.id) === caseId);
+    if (!caseItem || caseItem.status !== 'assigned' || caseItem.moderatorId !== interaction.user.id) {
+        await interaction.reply({ content: '❌ Bu kayıt size atanmış değil veya işlem zaten tamamlanmış.', flags: 64 });
+        return true;
+    }
+
+    if (action === 'complete') {
+        caseItem.status = 'completed';
+        caseItem.completedAt = new Date().toISOString();
+        caseItem.completedBy = interaction.user.id;
+        saveState(state);
+        await interaction.update({ components: [] });
+        return true;
+    }
+
+    await withAssignmentLock(caseItem.guildId, async () => {
+        caseItem.status = 'waiting';
+        caseItem.moderatorId = null;
+        caseItem.handedOffAt = new Date().toISOString();
+        saveState(state);
+    });
+    await interaction.update({ components: [] });
+    const guild = client.guilds.cache.get(caseItem.guildId);
+    if (guild) await dispatchWaitingCases(guild);
+    return true;
+}
+
+async function handleModerationQueueInteraction(interaction, client) {
+    if (interaction.isButton() && await handleAssignedCaseAction(interaction, client)) return;
+
     if (!canUseQueue(interaction)) {
         return interaction.reply({ content: '❌ Bu ceza personel panelini kullanma yetkiniz yok.', flags: 64 });
     }
 
     if (interaction.isButton() && ['modanasayfa', 'mod_anasayfa', 'modq_open'].includes(interaction.customId)) {
         const moderators = await getActiveModerators(interaction.guild);
+        const nextModerator = await getNextModerator(interaction.guild);
         return interaction.reply({
-            embeds: [makeQueueEmbed(getState(), moderators)],
+            embeds: [makeQueueEmbed(getState(), moderators, interaction.guildId, nextModerator)],
             components: makePanelComponents(),
             flags: 64,
         });
@@ -178,7 +240,7 @@ async function handleModerationQueueInteraction(interaction) {
         const modal = new ModalBuilder().setCustomId('modq_report_submit').setTitle('Kural İhlali Bildir');
         const userField = new TextInputBuilder()
             .setCustomId('modq_user')
-            .setLabel('Kullanıcı ID veya kullanıcı etiketi')
+            .setLabel('Kullanıcı ID veya @etiketi')
             .setPlaceholder('Örn. 123456789012345678 veya @Kullanıcı')
             .setStyle(TextInputStyle.Short)
             .setRequired(true);
@@ -195,7 +257,8 @@ async function handleModerationQueueInteraction(interaction) {
     if (interaction.isButton() && interaction.customId === 'modq_status') {
         const state = getState();
         const moderators = await getActiveModerators(interaction.guild);
-        return interaction.reply({ embeds: [makeQueueEmbed(state, moderators)], flags: 64 });
+        const nextModerator = await getNextModerator(interaction.guild, state);
+        return interaction.reply({ embeds: [makeQueueEmbed(state, moderators, interaction.guildId, nextModerator)], flags: 64 });
     }
 
     if (interaction.isModalSubmit() && interaction.customId === 'modq_report_submit') {
@@ -207,6 +270,7 @@ module.exports = {
     dispatchWaitingCases,
     canUseQueue,
     getActiveModerators,
+    getNextModerator,
     getState,
     handleModerationQueueInteraction,
     makePanelComponents,

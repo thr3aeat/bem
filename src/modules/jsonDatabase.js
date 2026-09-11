@@ -8,6 +8,7 @@ class JsonDatabase {
         this._writeTimer = null;
         this._dirty = false;
         this.data = this._load();
+        JsonDatabase._instances.push(this);
     }
 
     _load() {
