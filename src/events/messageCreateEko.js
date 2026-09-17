@@ -31,18 +31,24 @@ module.exports = {
             return;
         }
 
-        let fingerprints;
-        try {
-            const response = await fetch(resimUrlListesi[0]);
-            if (!response.ok) throw new Error(`Görsel indirilemedi (${response.status})`);
-            fingerprints = await createImageFingerprints(Buffer.from(await response.arrayBuffer()));
-        } catch (hashErr) {
-            console.error('[EKO] Görsel parmak izi oluşturulamadı:', hashErr.message);
+        const fingerprintsListesi = [];
+        for (const resimUrl of resimUrlListesi) {
+            try {
+                const response = await fetch(resimUrl);
+                if (!response.ok) continue;
+                fingerprintsListesi.push(await createImageFingerprints(Buffer.from(await response.arrayBuffer())));
+            } catch (hashErr) {
+                console.warn('[EKO] Bir görsel parmak izi oluşturulamadı:', hashErr.message);
+            }
+        }
+        if (!fingerprintsListesi.length) {
             await message.reply(subscriberPayload({ content: '⚠️ Görseli kontrol edemedim; lütfen dosyayı doğrudan yeniden yükle.' })).catch(() => {});
             return;
         }
 
-        const duplicate = findDuplicate(ekoImageHashesDb.all(), fingerprints);
+        const duplicateEntry = fingerprintsListesi.map(fingerprints => ({ fingerprints, duplicate: findDuplicate(ekoImageHashesDb.all(), fingerprints) })).find(item => item.duplicate);
+        const fingerprints = fingerprintsListesi[0];
+        const duplicate = duplicateEntry?.duplicate;
         if (duplicate) {
             const existingRecord = duplicate.record;
                         // Birebir aynı görsel tespit edildi!
@@ -83,11 +89,9 @@ module.exports = {
         }
 
         // Yeni görsel - hem dosya hem de görünüm parmak izini sakla.
-        ekoImageHashesDb.set(fingerprints.sha256, {
-            userId: message.author.id,
-            messageId: message.id,
-            timestamp: Date.now(),
-            perceptualHash: fingerprints.perceptualHash,
+        for (const imageFingerprints of fingerprintsListesi) ekoImageHashesDb.set(imageFingerprints.sha256, {
+            userId: message.author.id, messageId: message.id, timestamp: Date.now(),
+            perceptualHash: imageFingerprints.perceptualHash,
         });
 
         // --- Üye bilgisini al ---

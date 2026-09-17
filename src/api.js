@@ -16,6 +16,7 @@ const robloxServers = new Map();
 const loginCodes = new Map();
 const sessions = new Map();
 const codeRequestTimes = new Map();
+const API_SECRET = process.env.NEXUS_SECRET;
 
 function parseCookies(req) {
     return Object.fromEntries((req.headers.cookie || '').split(';').map(item => item.trim().split('=').map(decodeURIComponent)).filter(([key]) => key));
@@ -44,7 +45,7 @@ app.get('/check-status', (req, res) => {
 
 app.post('/api/oc-playerlist', (req, res) => {
     const secret = req.headers['x-nexus-secret'];
-    if (secret !== 'senturabem') return res.status(403).json({ error: 'Unauthorized' });
+    if (!API_SECRET || secret !== API_SECRET) return res.status(403).json({ error: 'Unauthorized' });
 
     const { serverId, placeId, userIds, serverBans } = req.body;
 
@@ -65,6 +66,8 @@ app.post('/api/oc-playerlist', (req, res) => {
 });
 
 app.post('/update-adalet', (req, res) => {
+    const secret = req.headers['x-nexus-secret'] || req.headers.authorization?.replace(/^Bearer\s+/i, '');
+    if (!API_SECRET || secret !== API_SECRET) return res.status(403).json({ error: 'Unauthorized' });
     const { status: newStatus } = req.body;
 
     if (typeof newStatus === 'boolean') {
