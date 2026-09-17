@@ -7,8 +7,13 @@ const {
 } = require('../modules/ekoUtils');
 const { sendLog } = require('../modules/embedBuilders');
 
-const crypto = require('crypto');
 const JsonDatabase = require('../modules/jsonDatabase');
+const {
+    extractImageUrls,
+    createImageFingerprints,
+    findDuplicate,
+} = require('../modules/imageDuplicateDetection');
+const { subscriberAllowedMentions, subscriberPayload } = require('../modules/subscriberMessaging');
 const ekoImageHashesDb = new JsonDatabase('ekoImageHashes.json');
 
 module.exports = {
@@ -19,35 +24,35 @@ module.exports = {
         if (message.channelId !== EKO_KANAL_ID) return;
         if (!ekoFotografVarMi(message)) return;
 
-        // --- Görsel URL tespiti ---
-        let resimUrl = null;
-        const a = message.attachments.first();
-        if (a) {
-            resimUrl = a.url;
-        } else {
-            const urlRegex = /https?:\/\/\S+\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?[^\s]*)?/i;
-            const match = message.content.match(urlRegex);
-            if (match) resimUrl = match[0];
+        // --- Görsel kopyalama kontrolü: ek, embed ve bağlantılar için tam + görsel parmak izi ---
+        const resimUrlListesi = extractImageUrls(message);
+        if (resimUrlListesi.length === 0) {
+            await message.reply(subscriberPayload({ content: '⚠️ Görseli okuyamadım; lütfen ekran görüntüsünü doğrudan dosya olarak yeniden yükle.' })).catch(() => {});
+            return;
         }
 
-        // --- Görsel Kopyalama / Çalıntı Kontrolü (SHA-256 Hash) ---
-        if (resimUrl) {
-            try {
-                const response = await fetch(resimUrl);
-                if (response.ok) {
-                    const arrayBuffer = await response.arrayBuffer();
-                    const hash = crypto.createHash('sha256').update(Buffer.from(arrayBuffer)).digest('hex');
-                    const existingRecord = ekoImageHashesDb.get(hash);
+        let fingerprints;
+        try {
+            const response = await fetch(resimUrlListesi[0]);
+            if (!response.ok) throw new Error(`Görsel indirilemedi (${response.status})`);
+            fingerprints = await createImageFingerprints(Buffer.from(await response.arrayBuffer()));
+        } catch (hashErr) {
+            console.error('[EKO] Görsel parmak izi oluşturulamadı:', hashErr.message);
+            await message.reply(subscriberPayload({ content: '⚠️ Görseli kontrol edemedim; lütfen dosyayı doğrudan yeniden yükle.' })).catch(() => {});
+            return;
+        }
 
-                    if (existingRecord) {
+        const duplicate = findDuplicate(ekoImageHashesDb.all(), fingerprints);
+        if (duplicate) {
+            const existingRecord = duplicate.record;
                         // Birebir aynı görsel tespit edildi!
                         try {
                             await message.delete().catch(() => {});
                         } catch {}
 
-                        const warningMsg = await message.channel.send({
-                            content: `❌ ${message.author.toString()} **Başkalarının görselini kopyalayamazsınız!**`
-                        }).catch(() => null);
+                        const warningMsg = await message.channel.send(subscriberPayload({
+                            content: `❌ ${message.author.toString()} Bu görsel daha önce kullanılmış. Lütfen kendi güncel abone ekran görüntünü gönder.`
+                        })).catch(() => null);
 
                         if (warningMsg) {
                             setTimeout(() => warningMsg.delete().catch(() => {}), 10000);
@@ -62,7 +67,7 @@ module.exports = {
                                 .setDescription(
                                     `**<@${message.author.id}>** (\`${message.author.tag}\`), daha önce ` +
                                     (existingRecord.userId === message.author.id ? 'kendisi' : `**<@${existingRecord.userId}>**`) +
-                                    ` tarafından yüklenmiş olan görselin **birebir kopyasını** yüklemeye çalıştı.\n\n` +
+                                    ` tarafından yüklenmiş olan görselin **${duplicate.type === 'exact' ? 'birebir kopyasını' : 'çok benzer bir sürümünü'}** yüklemeye çalıştı.\n\n` +
                                     `🚫 Mesaj otomatik silindi ve onay/rol işlemi engellendi.`
                                 )
                                 .addFields(
@@ -70,24 +75,20 @@ module.exports = {
                                     { name: '📅 Orijinal Yükleme', value: `<t:${Math.floor(existingRecord.timestamp / 1000)}:R>`, inline: true }
                                 )
                                 .setTimestamp();
-                            await sendLog(client, warnEmbed);
+                            await sendLog(client, warnEmbed, subscriberAllowedMentions());
                         } catch {}
 
-                        console.warn(`[⚠️ EKO GÖRSEL KOPYALAMA] ${message.author.tag} (${message.author.id}) kopyalanmış görsel attı. Hash: ${hash}`);
+                        console.warn(`[⚠️ EKO GÖRSEL KOPYALAMA] ${message.author.tag} (${message.author.id}) kopyalanmış görsel attı. Hash: ${fingerprints.sha256}`);
                         return; // İşlemi tamamen iptal et
-                    }
-
-                    // Yeni görsel - hash'i kaydet
-                    ekoImageHashesDb.set(hash, {
-                        userId: message.author.id,
-                        messageId: message.id,
-                        timestamp: Date.now()
-                    });
-                }
-            } catch (hashErr) {
-                console.error('[EKO] Görsel hash kontrolünde hata:', hashErr.message);
-            }
         }
+
+        // Yeni görsel - hem dosya hem de görünüm parmak izini sakla.
+        ekoImageHashesDb.set(fingerprints.sha256, {
+            userId: message.author.id,
+            messageId: message.id,
+            timestamp: Date.now(),
+            perceptualHash: fingerprints.perceptualHash,
+        });
 
         // --- Üye bilgisini al ---
         let member;
@@ -135,7 +136,7 @@ module.exports = {
         if (!ekoCooldownSet.has(cooldownKey)) {
             try {
                 const dmEmbed = ekoAboneDMEmbed(member, toplamFoto);
-                await message.author.send({ embeds: [dmEmbed] });
+                await message.author.send(subscriberPayload({ embeds: [dmEmbed] }));
                 dmDurumu = true;
                 ekoCooldownSet.add(cooldownKey);
                 // Cooldown 24 saat sonra otomatik temizle
@@ -166,7 +167,7 @@ module.exports = {
         // --- Log kanalına gönder ---
         try {
             const logEmbed = ekoLogEmbed(member, rolVerildi, toplamFoto, dmDurumu);
-            await sendLog(client, logEmbed);
+            await sendLog(client, logEmbed, subscriberAllowedMentions());
         } catch (err) {
             console.error('[EKO] Log gönderilemedi:', err.message);
         }
@@ -213,7 +214,7 @@ module.exports = {
                         .setEmoji('❌')
                 );
 
-                await onayKanal.send({ content: `🔔 **Yeni Onay İsteği!** ${message.author.toString()}`, embeds: [onayEmbed], components: [row] });
+                await onayKanal.send(subscriberPayload({ content: `🔔 **Yeni Onay İsteği!** ${message.author.toString()}`, embeds: [onayEmbed], components: [row] }));
             }
         } catch (err) {
             console.error('[EKO] Onay kanalına istek gönderilemedi:', err.message);

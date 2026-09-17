@@ -18,7 +18,7 @@ module.exports = {
                 { name: '⏱️ Uptime', value: `<t:${Math.floor((Date.now() - process.uptime() * 1000) / 1000)}:R>`, inline: true }
             )
             .setTimestamp()
-            .setFooter({ text: 'Sentura 🦸 ekoyildiz' });
+            .setFooter({ text: 'Mavi aksolotl kontrol panelini kuru tutuyor. 💙' });
 
         await interaction.reply({ embeds: [embed] });
     },

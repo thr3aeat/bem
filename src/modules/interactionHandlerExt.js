@@ -19,6 +19,7 @@ const {
 
 const conversationsDb = new JsonDatabase('conversations.json');
 const { recordModApproval, recordModRejection } = require('./modStatsUtils');
+const { subscriberPayload } = require('./subscriberMessaging');
 
 /**
  * Helper to send log messages to the system log channel.
@@ -113,7 +114,7 @@ async function handleCustomInteraction(interaction, client) {
                 .setTitle('✅ Abone Onaylandı (Log)')
                 .setDescription(`**${interaction.user.tag}** adlı moderatör, **<@${userId}>** (\`${userId}\`) kullanıcısının YouTube abone rolünü onayladı.`)
                 .setTimestamp();
-            await sendSystemLog(client, { embeds: [logEmbed] });
+            await sendSystemLog(client, subscriberPayload({ embeds: [logEmbed] }));
             return;
         }
 
@@ -186,7 +187,7 @@ async function handleCustomInteraction(interaction, client) {
                             .setEmoji('🔒')
                     );
 
-                    await user.send({ embeds: [rejectEmbed], components: [row] });
+                    await user.send(subscriberPayload({ embeds: [rejectEmbed], components: [row] }));
                 }
             } catch (err) {
                 console.warn(`[EKO REJECT] Kullanıcıya DM gönderilemedi (${userId}):`, err.message);
@@ -219,7 +220,7 @@ async function handleCustomInteraction(interaction, client) {
                 .setTitle('❌ Abone Reddedildi (Log)')
                 .setDescription(`**${interaction.user.tag}** adlı moderatör, **<@${userId}>** (\`${userId}\`) kullanıcısının YouTube abone rolünü reddetti ve rolünü geri aldı.`)
                 .setTimestamp();
-            await sendSystemLog(client, { embeds: [logEmbed] });
+            await sendSystemLog(client, subscriberPayload({ embeds: [logEmbed] }));
 
             await interaction.editReply({ content: '✅ Abone başarıyla reddedildi ve kullanıcıya bildirim gönderildi.' });
             return;

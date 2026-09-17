@@ -255,9 +255,10 @@ class ComponentsV2Factory {
             ? `-# ${aktifOzelGun.emoji} ${aktifOzelGun.name} Özel Yayını • Sentura Eko Yıldız Abone Otomasyonu • <t:${Math.floor(Date.now() / 1000)}:R>`
             : `-# Sentura Eko Yıldız Abone Otomasyonu • <t:${Math.floor(Date.now() / 1000)}:R>`;
 
+        const { subscriberAllowedMentions } = require('./subscriberMessaging');
         return {
             flags: FLAGS_V2,
-            allowedMentions: { parse: ['users'] },
+            allowedMentions: subscriberAllowedMentions(),
             components: [
                 this.container(color, [
                     this.section(sectionContent, avatarUrl),
@@ -315,7 +316,7 @@ class ComponentsV2Factory {
             flags: FLAGS_V2,
             components: [
                 this.container(0x00FF88, [
-                    this.section(
+                    this.text(
                         `## 🔍 Başlangıç Kayıt Kanalı Taraması Tamamlandı\n` +
                         `Bot başlatıldığında <#${kanalId}> kanalına yazan tüm kullanıcıların rolleri ve sunucu durumları otomatik olarak kontrol edildi.`
                     ),

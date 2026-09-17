@@ -90,6 +90,6 @@ selfHealing.init(client, loginWithRetry);
 //  START BOT
 // ============================================================
 const PORT = process.env.PORT || config.PORT || 3000;
-startApi(PORT);
+startApi(PORT, client);
 
 loginWithRetry();

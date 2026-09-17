@@ -30,7 +30,7 @@ module.exports = {
             const accentColor = (aktifOzelGun && aktifOzelGun.accentColor) ? aktifOzelGun.accentColor : 0x00FF88;
             const welcomeText = (aktifOzelGun && typeof aktifOzelGun.welcomeBanner === 'function')
                 ? aktifOzelGun.welcomeBanner(member.user.toString(), member.guild.name)
-                : `## 👋 Hoş Geldin, ${member.user.toString()}!\n**${member.guild.name}** ailesine katıldın! 🎉`;
+                : `## 👋 Hoş Geldin, ${member.user.toString()}!\n**${member.guild.name}** ailesine katıldın! 🎉\n-# Mavi aksolotl sana küçük bir baloncuk selamı bıraktı. 🫧`;
 
             const footerText = aktifOzelGun
                 ? `-# ${aktifOzelGun.emoji} ${aktifOzelGun.name} • Sentura 🦸 ekoyildiz • <t:${Math.floor(Date.now() / 1000)}:R>`

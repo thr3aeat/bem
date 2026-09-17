@@ -50,11 +50,11 @@ async function sendDM(user, embed) {
 // ============================================================
 //  LOG CHANNEL SENDING
 // ============================================================
-async function sendLog(client, embed) {
+async function sendLog(client, embed, allowedMentions) {
     if (!config.LOG_CHANNEL_ID) return;
     try {
         const channel = await client.channels.fetch(config.LOG_CHANNEL_ID);
-        if (channel) await channel.send({ embeds: [embed] });
+        if (channel) await channel.send({ embeds: [embed], ...(allowedMentions ? { allowedMentions } : {}) });
     } catch { }
 }
 

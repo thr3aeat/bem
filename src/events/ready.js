@@ -24,7 +24,8 @@ module.exports = {
             });
         }
         
-        client.user.setActivity('Sentura 🦸 ekoyildiz | /yardim', { type: 4 });
+        const { startPresenceRotation } = require('../modules/axolotlPersonality');
+        startPresenceRotation(client);
 
         // Başlangıçta grup rollerini önbelleğe al
         if (ROBLOX_COOKIE) {
@@ -228,7 +229,9 @@ module.exports = {
             } catch (err) {
                 console.error('[❌ EKO] Başlangıç abone rol kontrolü sırasında hata oluşti:', err);
             }
-        }, 8000);
+        // Kayıt taramasının yaptığı gateway üye listesinden sonra çalışır; aynı
+        // sunucu için eşzamanlı opcode 8 istekleri Discord tarafından sınırlanır.
+        }, 35000);
 
         // Ekocan / Ekocancık aile seçim mesajı kontrolü
         const sendEkocanChoiceMessage = async (cl) => {

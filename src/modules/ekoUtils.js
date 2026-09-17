@@ -1,6 +1,7 @@
 const { EmbedBuilder } = require('discord.js');
 const { EKO_GUILD_ID, EKO_KANAL_ID, EKO_ROL_ID, EKO_DM_MESAJ } = require('./constants');
 const JsonDatabase = require('./jsonDatabase');
+const { subscriberPayload } = require('./subscriberMessaging');
 
 const ekoAbonerDatabase = new JsonDatabase('subscribers.json');
 const ekoDailyStats = new Map();
@@ -143,7 +144,7 @@ async function ekoKarsilamaMesajiniGonder(client) {
             .setTimestamp()
             .setFooter({ text: 'Sentura • Eko Yıldız Abone Otomasyonu' });
 
-        const yeniMesaj = await kanal.send({ embeds: [embed] });
+        const yeniMesaj = await kanal.send(subscriberPayload({ embeds: [embed] }));
         ekoKarsilamaMesajId = yeniMesaj.id;
 
         await yeniMesaj.pin().catch(() => {});
