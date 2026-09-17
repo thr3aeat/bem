@@ -93,6 +93,9 @@ module.exports = {
             userId: message.author.id, messageId: message.id, timestamp: Date.now(),
             perceptualHash: imageFingerprints.perceptualHash,
         });
+        // Duplicate kaydı rol/onay akışından önce kalıcılaştırılır. Render yeniden
+        // başlasa bile başarılı ilk yükleme kaybolup aynı dosya tekrar kabul edilmez.
+        await ekoImageHashesDb._flush();
 
         // --- Üye bilgisini al ---
         let member;
