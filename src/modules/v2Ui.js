@@ -19,4 +19,13 @@ function panel({ title, body, details, actions = [] }) {
     return { flags: MessageFlags.IsComponentsV2 || (1 << 13), components: [{ type: type.container, components }] };
 }
 
-module.exports = { panel };
+function fromEmbed(embed) {
+    const data = embed?.data || embed || {};
+    const details = [
+        data.fields?.map(field => `**${field.name}**\n${field.value}`).join('\n\n'),
+        data.footer?.text ? `-# ${data.footer.text}` : null,
+    ].filter(Boolean).join('\n\n');
+    return panel({ title: data.title || 'Sistem Bildirimi', body: data.description || '', details });
+}
+
+module.exports = { panel, fromEmbed };

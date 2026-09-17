@@ -4,6 +4,7 @@
 
 const { EmbedBuilder } = require('discord.js');
 const { colorMap, iconMap, titleMap, config } = require('./constants');
+const { fromEmbed } = require('./v2Ui');
 
 // ============================================================
 //  MODERATION EMBED
@@ -54,7 +55,7 @@ async function sendLog(client, embed, allowedMentions) {
     if (!config.LOG_CHANNEL_ID) return;
     try {
         const channel = await client.channels.fetch(config.LOG_CHANNEL_ID);
-        if (channel) await channel.send({ embeds: [embed], ...(allowedMentions ? { allowedMentions } : {}) });
+        if (channel) await channel.send({ ...fromEmbed(embed), ...(allowedMentions ? { allowedMentions } : {}) });
     } catch { }
 }
 

@@ -20,6 +20,7 @@ const {
 const conversationsDb = new JsonDatabase('conversations.json');
 const { recordModApproval, recordModRejection } = require('./modStatsUtils');
 const { subscriberPayload } = require('./subscriberMessaging');
+const { fromEmbed } = require('./v2Ui');
 
 /**
  * Helper to send log messages to the system log channel.
@@ -28,7 +29,11 @@ async function sendSystemLog(client, embedOrPayload) {
     try {
         const logKanal = await client.channels.fetch(SISTEM_LOG_KANAL_ID).catch(() => null);
         if (logKanal) {
-            await logKanal.send(embedOrPayload).catch(() => {});
+            const payload = embedOrPayload?.embeds?.length
+                ? { ...fromEmbed(embedOrPayload.embeds[0]), ...embedOrPayload }
+                : embedOrPayload;
+            if (payload?.embeds) delete payload.embeds;
+            await logKanal.send(payload).catch(() => {});
         }
     } catch (err) {
         console.error('[SYSTEM LOG] Log gönderilemedi:', err.message);
