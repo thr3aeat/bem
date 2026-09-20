@@ -572,7 +572,9 @@ function rastgeleCevap(havuz, kullaniciAdi) {
 }
 
 function shouldRequireBotReply(tip, icerik) {
-    return tip === 'iyiyim' && icerik !== 'iyi';
+    // Sağlık/hal hatır cevapları yalnızca botun mesajına doğrudan yanıtlanırsa
+    // çalışır; normal sohbette yazılan "iyi" veya "iyiyim" yok sayılır.
+    return tip === 'iyiyim';
 }
 
 module.exports = { selamlamaTetikleyicileri, cevapHavuzu, rastgeleCevap, shouldRequireBotReply };

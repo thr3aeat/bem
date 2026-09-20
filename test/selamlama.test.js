@@ -9,8 +9,10 @@ test('common greeting pools contain expanded response choices', () => {
     assert.ok(cevapHavuzu.iyiyim.length >= 40);
 });
 
-test('plain "iyi" does not require replying to the bot', () => {
-    assert.equal(shouldRequireBotReply('iyiyim', 'iyi'), false);
+test('all health replies require replying to the bot', () => {
+    assert.equal(shouldRequireBotReply('iyiyim', 'iyi'), true);
+    assert.equal(shouldRequireBotReply('iyiyim', 'iyiyim'), true);
+    assert.equal(shouldRequireBotReply('iyiyim', 'süperim'), true);
 });
 
 test('other health replies still require replying to the bot', () => {
