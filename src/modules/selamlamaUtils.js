@@ -499,6 +499,71 @@ const cevapHavuzu = {
     ],
 };
 
+// Sık kullanılan sohbet akışlarında tekrar hissini azaltmak için ek seçenekler.
+// Mevcut cevaplar korunur; bu havuzlar yalnızca rastgele seçim alanını genişletir.
+const ekCevaplar = {
+    selam: [
+        (u) => `Selam ${u}! Mavi aksolotl yüzgeçlerini sallayarak geldi. 🫧`,
+        (u) => `Hey ${u}, su altı merkezinden selamlar! 🌊`,
+        (u) => `Selam ${u}! Bugünün baloncuk kotası şimdiden doldu bile. 🫧`,
+        (u) => `Hoş geldin ${u}; aksolotl radarım seni yakaladı. 👀`,
+        (u) => `Selam ${u}! EkoYıldız kontrol paneli seni bekliyordu. 💙`,
+        (u) => `Merhaba ${u}, yüzgeçler hazır; sohbete başlayabiliriz. 🦎`,
+        (u) => `Selam ${u}! Burada her şey sakin, sadece baloncuklar biraz gürültülü. 🫧`,
+        (u) => `Hey ${u}! Mavi aksolotl moduna geçiş başarılı. ✨`,
+        (u) => `Selam ${u}, sunucunun derinliklerinde seni görmek güzel! 🌊`,
+        (u) => `Merhaba ${u}! Bir aksolotl kadar sevimli, bir bot kadar hazırız. 💙`,
+        (u) => `Selam ${u}! Bugün de komutları yüzerek karşılıyorum. 🐟`,
+        (u) => `Hey ${u}, hoş geldin! Baloncuklardan biri özellikle senin için patladı. 🫧`
+    ],
+    'nasılsın': [
+        (u) => `İyiyim ${u}; solungaçlar açık, baloncuklar yerinde. 🫧`,
+        (u) => `Gayet iyiyim ${u}! Biraz yüzüyor, biraz da sunucuyu kolluyorum. 🌊`,
+        (u) => `İyiyim ${u}, bugün enerji seviyem mavi aksolotl kadar yüksek. 💙`,
+        (u) => `Harikayım ${u}! Sadece bir baloncuk molasına ihtiyacım var. 🫧`,
+        (u) => `Durum raporu: ${u} ile konuşunca daha da iyiyim. ✨`,
+        (u) => `İyiyim ${u}; komut kuyruğu sakin, yüzgeçler çalışıyor. 🦎`,
+        (u) => `Fena değilim ${u}, su sıcaklığı da ideal. 🌊`,
+        (u) => `İyiyim ${u}! Bugün hiçbir baloncuk planımı bozamadı. 👀`,
+        (u) => `Çok iyiyim ${u}; EkoYıldız'ın derinliklerinde görev başındayım. 💙`,
+        (u) => `İyiyim ${u}, dijital solungaçlarım tam kapasite. 🫧`,
+        (u) => `Keyfim yerinde ${u}; küçük bir aksolotl böyle mutlu olur. 🐟`,
+        (u) => `İyiyim ${u}! Biraz yüzdüm, şimdi sohbete hazırım. 🌊`
+    ],
+    'ne yapıyorsun': [
+        (u) => `${u}, baloncuk sayıyorum; şimdilik sayı kontrolden çıktı. 🫧`,
+        (u) => `${u}, sunucunun derinliklerinde sessiz bir tur atıyorum. 🌊`,
+        (u) => `${u}, yeni komutlar için yüzgeçlerimi ısıtıyorum. 🦎`,
+        (u) => `${u}, EkoYıldız'ı su altından yönetmeye çalışıyorum. 💙`,
+        (u) => `${u}, mesajları okuyup arada bir havalı görünüyorum. 👀`,
+        (u) => `${u}, bir sonraki komutunu bekliyorum; baloncuk eşliğinde. 🫧`,
+        (u) => `${u}, sunucunun huzurunu ve balık trafiğini kontrol ediyorum. 🐟`,
+        (u) => `${u}, görev başındayım ama minik bir yüzme molası da var. 🌊`,
+        (u) => `${u}, görünmez bir akvaryum toplantısındayım. ✨`,
+        (u) => `${u}, hatasız çalışmakla sevimli görünmek arasında denge kuruyorum. 💙`,
+        (u) => `${u}, cevap havuzundan en iyi baloncukları seçiyorum. 🫧`,
+        (u) => `${u}, buradayım; seni dinliyor ve su altı notlarımı güncelliyorum. 🦎`
+    ],
+    iyiyim: [
+        (u) => `Süperim ${u}! Mavi aksolotl enerjisi tam gaz. 💙`,
+        (u) => `İyiyim ${u}; solungaçlarım ritminde, keyfim yerinde. 🫧`,
+        (u) => `Gayet iyiyim ${u}, bugün baloncuklar bile beni alkışlıyor. ✨`,
+        (u) => `İyiyim ${u}! Sen sorunca dijital yüzgeçlerim coştu. 🌊`,
+        (u) => `Çok iyiyim ${u}; görev, sohbet ve biraz yüzme devam ediyor. 🦎`,
+        (u) => `İyiyim ${u}, aksolotl standartlarına göre mükemmel durumdayım. 💙`,
+        (u) => `Keyfim yerinde ${u}; bir baloncuk daha patlatmaya hazırım. 🫧`,
+        (u) => `İyiyim ${u}! Sunucunun derinlikleri bugün oldukça sakin. 🌊`,
+        (u) => `Harikayım ${u}; komut motoru çalışıyor, yüzgeçler parlıyor. ✨`,
+        (u) => `İyiyim ${u}, seninle konuşmak güzel geldi. 🐟`,
+        (u) => `Daha iyi olamazdım ${u}; mavi mod aktif. 💙`,
+        (u) => `İyiyim ${u}! Şimdi bir sonraki macerayı bekliyorum. 🫧`
+    ]
+};
+
+for (const [tip, cevaplar] of Object.entries(ekCevaplar)) {
+    cevapHavuzu[tip].push(...cevaplar);
+}
+
 function rastgeleCevap(havuz, kullaniciAdi) {
     const options = havuz || [];
     if (options.length === 0) return null;
