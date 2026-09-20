@@ -1,5 +1,5 @@
 const { Events } = require('discord.js');
-const { selamlamaTetikleyicileri, cevapHavuzu, rastgeleCevap } = require('../modules/selamlamaUtils');
+const { selamlamaTetikleyicileri, cevapHavuzu, rastgeleCevap, shouldRequireBotReply } = require('../modules/selamlamaUtils');
 const { selamlamaCooldown, selamlamaDurum } = require('../modules/stats');
 
 const COOLDOWN_MS = 6000;
@@ -46,7 +46,7 @@ module.exports = {
         if (!eslesen) return;
 
         // "iyiyim" cevabı için sadece bota yanıt (reply) verdiyse çalışsın
-        if (eslesen.tip === 'iyiyim') {
+        if (shouldRequireBotReply(eslesen.tip, icerik)) {
             if (!message.reference || !message.reference.messageId) return;
             
             try {

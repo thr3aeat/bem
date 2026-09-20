@@ -506,4 +506,8 @@ function rastgeleCevap(havuz, kullaniciAdi) {
     return fn(kullaniciAdi);
 }
 
-module.exports = { selamlamaTetikleyicileri, cevapHavuzu, rastgeleCevap };
+function shouldRequireBotReply(tip, icerik) {
+    return tip === 'iyiyim' && icerik !== 'iyi';
+}
+
+module.exports = { selamlamaTetikleyicileri, cevapHavuzu, rastgeleCevap, shouldRequireBotReply };
