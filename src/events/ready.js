@@ -193,6 +193,8 @@ module.exports = {
         setTimeout(() => kayitKarsilamaMesajiniGonder(client), 3000);
         setTimeout(() => taraveKontrolEtKayitKanali(client), 4000);
         setTimeout(() => ekoKarsilamaMesajiniGonder(client), 5000);
+        // Kopya görsel indeksini kanal geçmişinden önceden ısıt (Render diski kalıcı değil)
+        require('../modules/ekoImageIndex').ensureEkoImageIndex(client);
 
         // Başlangıçta eksik abone rollerini tamamlama kontrolü
         setTimeout(async () => {

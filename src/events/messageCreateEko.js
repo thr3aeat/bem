@@ -7,14 +7,9 @@ const {
 } = require('../modules/ekoUtils');
 const { sendLog } = require('../modules/embedBuilders');
 
-const JsonDatabase = require('../modules/jsonDatabase');
-const {
-    extractImageUrls,
-    createImageFingerprints,
-    findDuplicate,
-} = require('../modules/imageDuplicateDetection');
+const { extractImageUrls, findDuplicate } = require('../modules/imageDuplicateDetection');
+const { ekoImageHashesDb, ensureEkoImageIndex, fingerprintUrl } = require('../modules/ekoImageIndex');
 const { subscriberAllowedMentions, subscriberPayload } = require('../modules/subscriberMessaging');
-const ekoImageHashesDb = new JsonDatabase('ekoImageHashes.json');
 
 module.exports = {
     name: Events.MessageCreate,
@@ -34,9 +29,7 @@ module.exports = {
         const fingerprintsListesi = [];
         for (const resimUrl of resimUrlListesi) {
             try {
-                const response = await fetch(resimUrl);
-                if (!response.ok) continue;
-                fingerprintsListesi.push(await createImageFingerprints(Buffer.from(await response.arrayBuffer())));
+                fingerprintsListesi.push(await fingerprintUrl(resimUrl));
             } catch (hashErr) {
                 console.warn('[EKO] Bir görsel parmak izi oluşturulamadı:', hashErr.message);
             }
@@ -46,7 +39,11 @@ module.exports = {
             return;
         }
 
-        const duplicateEntry = fingerprintsListesi.map(fingerprints => ({ fingerprints, duplicate: findDuplicate(ekoImageHashesDb.all(), fingerprints) })).find(item => item.duplicate);
+        // Restart sonrası indeks boş olabilir; kanal geçmişinden yeniden kurulmasını bekle.
+        await ensureEkoImageIndex(client);
+        // Geçmiş taraması bu mesajı da indekslemiş olabilir; kendisiyle eşleşmesin.
+        const kayitlar = Object.fromEntries(Object.entries(ekoImageHashesDb.all()).filter(([, record]) => record?.messageId !== message.id));
+        const duplicateEntry = fingerprintsListesi.map(fingerprints => ({ fingerprints, duplicate: findDuplicate(kayitlar, fingerprints) })).find(item => item.duplicate);
         const fingerprints = fingerprintsListesi[0];
         const duplicate = duplicateEntry?.duplicate;
         if (duplicate) {
