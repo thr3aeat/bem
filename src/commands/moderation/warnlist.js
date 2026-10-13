@@ -9,6 +9,8 @@ const {
 } = require('discord.js');
 const { getUserWarnings } = require('../../modules/moderationUtils');
 
+const ui = require('../../modules/commandUi');
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('warnlist')
@@ -23,10 +25,7 @@ module.exports = {
         const warns = getUserWarnings(user.id);
 
         if (warns.length === 0) {
-            return interaction.reply({
-                content: `✅ **${user.tag}** adlı kullanıcının hiç uyarısı yok.`,
-                flags: 64,
-            });
+            return interaction.reply(ui.success('Temiz Sicil', `${user} kullanıcısının hiç uyarısı yok.`, { icon: '🕊️', ephemeral: true }));
         }
 
         const warnLines = warns.slice(0, 25).map((w, i) =>

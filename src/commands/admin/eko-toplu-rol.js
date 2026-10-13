@@ -1,12 +1,6 @@
-const {
-    SlashCommandBuilder,
-    ContainerBuilder,
-    TextDisplayBuilder,
-    SeparatorBuilder,
-    SeparatorSpacingSize,
-    MessageFlags,
-} = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { EKO_GUILD_ID, EKO_KANAL_ID, EKO_ROL_ID, ekoFotografVarMi } = require('../../modules/ekoUtils');
+const ui = require('../../modules/commandUi');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -20,20 +14,17 @@ module.exports = {
                 .setRequired(false)
         ),
 
-    async execute(interaction, client) {
-        if (interaction.guildId !== EKO_GUILD_ID)
-            return interaction.reply({ content: '❌ Bu komut sadece Eko sunucusunda kullanılabilir.', flags: 64 });
+    async execute(interaction) {
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-        await interaction.deferReply({ flags: 64 });
-
-        const guild = client.guilds.cache.get(EKO_GUILD_ID);
-        if (!guild) return interaction.editReply('❌ Sunucu bulunamadı.');
+        const guild = interaction.client.guilds.cache.get(EKO_GUILD_ID);
+        if (!guild) return ui.respond(interaction, ui.error('Eko sunucusu bulunamadı. Bot sunucuda mı?'));
 
         const rol = guild.roles.cache.get(EKO_ROL_ID);
-        if (!rol) return interaction.editReply('❌ Eko Yıldız rolü bulunamadı.');
+        if (!rol) return ui.respond(interaction, ui.error('Eko Yıldız rolü bulunamadı.'));
 
         const kanal = guild.channels.cache.get(EKO_KANAL_ID);
-        if (!kanal) return interaction.editReply('❌ Eko kanalı bulunamadı.');
+        if (!kanal) return ui.respond(interaction, ui.error('Eko kanalı bulunamadı.'));
 
         const limit = interaction.options.getInteger('limit') ?? 100;
 
@@ -41,7 +32,7 @@ module.exports = {
         try {
             mesajlar = await kanal.messages.fetch({ limit });
         } catch {
-            return interaction.editReply('❌ Mesajlar alınamadı.');
+            return ui.respond(interaction, ui.error('Kanal mesajları alınamadı.'));
         }
 
         const fotografPaylasanlar = new Set();
@@ -52,7 +43,7 @@ module.exports = {
         });
 
         if (fotografPaylasanlar.size === 0) {
-            return interaction.editReply(`ℹ️ Son ${limit} mesajda fotoğraf paylaşan kullanıcı bulunamadı.`);
+            return ui.respond(interaction, ui.info('Kimse Bulunamadı', `Son **${limit}** mesajda fotoğraf paylaşan kullanıcı yok.`, { icon: '🔍' }));
         }
 
         await guild.members.fetch();
@@ -64,7 +55,7 @@ module.exports = {
 
             if (!m.roles.cache.has(EKO_ROL_ID)) {
                 try {
-                    await m.roles.add(rol, 'Toplu rol verme işlemi');
+                    await m.roles.add(rol, `Toplu rol verme işlemi | Yetkili: ${interaction.user.tag}`);
                     verildi++;
                 } catch {
                     hata++;
@@ -75,36 +66,18 @@ module.exports = {
             await new Promise(r => setTimeout(r, 100)); // Rate limit koruması
         }
 
-        const accentColor = hata > 0 ? 0xFF4444 : verildi > 0 ? 0x00FF88 : 0x888888;
-
-        const container = new ContainerBuilder()
-            .setAccentColor(accentColor)
-            .addTextDisplayComponents(
-                new TextDisplayBuilder().setContent('## 📊 Toplu Rol İşlemi Tamamlandı')
-            )
-            .addSeparatorComponents(
-                new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true)
-            )
-            .addTextDisplayComponents(
-                new TextDisplayBuilder().setContent(
-                    `✅ **Rol Verildi** — ${verildi} kişi\n` +
-                    `⏩ **Zaten Vardı** — ${atildi} kişi\n` +
-                    `❌ **Hata** — ${hata} kişi\n` +
-                    `🔍 **Taranan Mesaj** — ${limit}`
-                )
-            )
-            .addSeparatorComponents(
-                new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(false)
-            )
-            .addTextDisplayComponents(
-                new TextDisplayBuilder().setContent(
-                    `-# İşlemi yapan: ${interaction.user.tag} • <t:${Math.floor(Date.now() / 1000)}:R>`
-                )
-            );
-
-        await interaction.editReply({
-            components: [container],
-            flags: MessageFlags.IsComponentsV2,
-        });
+        await ui.respond(interaction, ui.card({
+            tone: hata > 0 ? 'warning' : verildi > 0 ? 'success' : 'neutral',
+            icon: '📊',
+            title: 'Toplu Rol İşlemi Tamamlandı',
+            description: `<#${EKO_KANAL_ID}> kanalındaki son **${limit}** mesaj tarandı.`,
+            fields: [
+                { name: '✅ Rol verildi', value: `${verildi} kişi` },
+                { name: '⏩ Zaten vardı', value: `${atildi} kişi` },
+                { name: '❌ Hata / sunucuda değil', value: `${hata} kişi` },
+                { name: '👮 İşlemi yapan', value: `${interaction.user}` },
+            ],
+            footer: 'Eko Yıldız Otomasyon',
+        }));
     },
 };

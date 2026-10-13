@@ -16,6 +16,8 @@ const {
     getOzelGunSelamMesaji
 } = require('../../modules/ozelGunler');
 
+const ui = require('../../modules/commandUi');
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('eko-ozel-gun')
@@ -95,7 +97,7 @@ module.exports = {
             const secilenGun = setTestOzelGun(bayramKey);
 
             if (!secilenGun) {
-                return await interaction.reply({ content: '❌ Belirtilen özel gün bulunamadı.', ephemeral: true });
+                return await interaction.reply(ui.error('Belirtilen özel gün bulunamadı.'));
             }
 
             const container = new ContainerBuilder()
@@ -151,15 +153,16 @@ module.exports = {
             const ornekMesaj = getOzelGunSelamMesaji('selam', username);
 
             if (!ornekMesaj) {
-                return await interaction.reply({
-                    content: 'ℹ️ Şu an aktif bir özel gün teması yok. Önce `/eko-ozel-gun test bayram: zafer_bayrami` ile bir tema seçebilirsiniz.',
-                    ephemeral: true
-                });
+                return await interaction.reply(ui.info('Aktif Tema Yok', 'Şu an aktif bir özel gün teması yok. Önce `/eko-ozel-gun test bayram: zafer_bayrami` ile bir tema seçebilirsin.', { ephemeral: true }));
             }
 
-            return await interaction.reply({
-                content: `🇹🇷 **[${aktifGun.name} Selam Örneği]**\n${ornekMesaj}`
-            });
+            return await interaction.reply(ui.card({
+                color: aktifGun.accentColor,
+                icon: aktifGun.emoji || '🇹🇷',
+                title: `${aktifGun.name} · Selam Örneği`,
+                description: `>>> ${ornekMesaj}`,
+                footer: 'Sentura Özel Günler Sistemi',
+            }));
         }
     }
 };

@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const { addModCase, parseDuration, formatDuration, tempbanDatabase } = require('../../modules/moderationUtils');
-const { buildDMEmbed, buildModEmbed, sendDM, sendLog } = require('../../modules/embedBuilders');
+const ui = require('../../modules/commandUi');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -16,15 +16,15 @@ module.exports = {
         const reason     = interaction.options.getString('sebep');
         const durationMs = parseDuration(sureStr);
 
-        if (!durationMs) {
-            return interaction.reply({ content: '❌ Geçersiz süre formatı! Örnek: `10m`, `2h`, `1d`', flags: 64 });
-        }
+        if (!durationMs) return interaction.reply(ui.error('Geçersiz süre formatı. Örnek: `10m`, `2h`, `1d`'));
+        if (user.id === interaction.user.id) return interaction.reply(ui.error('Kendini banlayamazsın.'));
 
         const member = await interaction.guild.members.fetch(user.id).catch(() => null);
         if (member && !member.bannable) {
-            return interaction.reply({ content: '❌ Bu kullanıcıyı banlayamam!', flags: 64 });
+            return interaction.reply(ui.error('Bu kullanıcıyı banlayamam. Rolü benim rolümden yüksek olabilir.'));
         }
 
+        await interaction.deferReply();
         const expiresAt    = Date.now() + durationMs;
         const durationText = formatDuration(durationMs);
         const caseId       = addModCase('TEMPBAN', user.id, interaction.user.id, `${reason} (${durationText})`);
@@ -32,10 +32,9 @@ module.exports = {
         // Merkezi moderationUtils DB'sini kullan (duplicate DB yok)
         tempbanDatabase.set(user.id, { expiresAt, reason, moderatorId: interaction.user.id });
 
-        const dmEmbed = buildDMEmbed('tempban', interaction.guild.name, interaction.user.tag, reason,
-            `Süre: **${durationText}**\nBitiş: <t:${Math.floor(expiresAt / 1000)}:F>\nVaka ID: #${caseId}`
-        );
-        const dmSent = await sendDM(user, dmEmbed);
+        const dmSent = await ui.sendDMCard(user, ui.modDMCard('tempban', interaction.guild.name, interaction.user.tag, reason,
+            `⏱️ Süre: **${durationText}**\n🕐 Bitiş: ${ui.ts(expiresAt, 'F')} (${ui.ts(expiresAt)})\n🔖 Vaka ID: **#${caseId}**`
+        ));
 
         try {
             await interaction.guild.bans.create(user.id, {
@@ -43,23 +42,19 @@ module.exports = {
                 deleteMessageSeconds: 86400
             });
 
-            const embed = buildModEmbed(
-                `⏳ Geçici Ban | Vaka #${caseId}`,
-                '#CC0000',
-                [
-                    { name: '👤 Kullanıcı',  value: `${user.tag}\n(${user.id})`,                    inline: true },
-                    { name: '👮 Yetkili',    value: interaction.user.tag,                            inline: true },
-                    { name: '⏱️ Süre',       value: durationText,                                   inline: true },
-                    { name: '📋 Sebep',      value: reason,                                          inline: false },
-                    { name: '🕐 Bitiş',      value: `<t:${Math.floor(expiresAt / 1000)}:F>`,        inline: true },
-                    { name: '📩 DM Durumu',  value: dmSent ? '✅ Gönderildi' : '❌ Gönderilemedi',  inline: true },
-                ]
-            );
-            await interaction.reply({ embeds: [embed] });
-            await sendLog(client, embed);
+            const payload = ui.modCard({
+                action: 'tempban', title: 'Geçici Ban', caseId, user,
+                moderator: interaction.user, reason, dmSent,
+                fields: [
+                    { name: '⏱️ Süre', value: durationText },
+                    { name: '🕐 Bitiş', value: `${ui.ts(expiresAt, 'F')} (${ui.ts(expiresAt)})` },
+                ],
+            });
+            await ui.respond(interaction, payload);
+            await ui.sendLogCard(client, payload);
         } catch (error) {
             tempbanDatabase.delete(user.id);
-            await interaction.reply({ content: `❌ Geçici banlama işlemi başarısız: ${error.message}`, flags: 64 });
+            await ui.respond(interaction, ui.error(`Geçici banlama işlemi başarısız: \`${error.message}\``));
         }
     },
 };

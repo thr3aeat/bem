@@ -10,6 +10,8 @@ const {
 const { getUserWarnings, removeWarning } = require('../../modules/moderationUtils');
 const { buildModEmbed } = require('../../modules/embedBuilders');
 
+const ui = require('../../modules/commandUi');
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('warnremove')
@@ -28,14 +30,11 @@ module.exports = {
         const warns = getUserWarnings(user.id);
 
         if (warns.length === 0) {
-            return interaction.reply({ content: `❌ **${user.tag}** adlı kullanıcının uyarısı yok.`, flags: 64 });
+            return interaction.reply(ui.warning(`${user} kullanıcısının kaldırılacak uyarısı yok.`));
         }
 
         if (index < 0 || index >= warns.length) {
-            return interaction.reply({
-                content: `❌ Geçersiz uyarı numarası! (1 ile ${warns.length} arasında olmalı)`,
-                flags: 64,
-            });
+            return interaction.reply(ui.error(`Geçersiz uyarı numarası. **1** ile **${warns.length}** arasında olmalı.`));
         }
 
         const removedWarn = warns[index];

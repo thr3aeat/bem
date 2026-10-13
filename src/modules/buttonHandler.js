@@ -75,12 +75,13 @@ async function handleButtonInteraction(interaction, client) {
 
     // ─── SİSTEM KONTROL PANELİ BUTONLARI ──────────────────────────────────────
     if (customId.startsWith('btn_toggle_') || customId.startsWith('btn_all_')) {
-        const { status } = require('../../api');
+        const { status } = require('../api');
         const { buildModEmbed, sendLog } = require('./embedBuilders');
         const { buildSistemKontrolV2 } = require('../commands/admin/sistem-kontrol');
 
-        if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
-            return interaction.reply({ content: '❌ Bu butonları kullanmak için yeterli yetkiniz yok!', flags: 64 });
+        const { isOwner } = require('./commandAccess');
+        if (!isOwner(interaction.user) && !interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+            return interaction.reply(require('./commandUi').error('Bu butonları kullanmak için **Sunucuyu Yönet** yetkisi gerekiyor.', { title: 'Yetkin Yok', icon: '🔒' }));
         }
 
         let systemName = '';

@@ -1,15 +1,27 @@
-const { SlashCommandBuilder, MessageFlags } = require('discord.js');
-const { status } = require('../../api');
-const { panel } = require('../../modules/v2Ui');
+const { SlashCommandBuilder } = require('discord.js');
+const { overview } = require('../../modules/systemToggle');
+const ui = require('../../modules/commandUi');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('durum')
         .setDescription('Tüm sistemlerin anlık durumunu gösterir.'),
     async execute(interaction, client) {
-        await interaction.reply({ ...panel({
-            title: '📡 Sistem Durum Paneli',
-            details: `🎮 Roblox Oyun — ${status.isGameOpen ? '✅ AÇIK' : '❌ KAPALI'}\n🛒 Rütbe Market — ${status.isMarketOpen ? '✅ AÇIK' : '❌ KAPALI'}\n⚖️ Adalet Sarayı — ${status.isAdaletSarayOpen ? '✅ AÇIK' : '❌ KAPALI'}\n🤖 Bot — 🟢 Çevrimiçi\n📡 API Gecikme — ${client.ws.ping}ms\n⏱️ Uptime — <t:${Math.floor((Date.now() - process.uptime() * 1000) / 1000)}:R>`
-        }), flags: MessageFlags.IsComponentsV2 });
+        const ping = client.ws.ping;
+        await interaction.reply(ui.card({
+            tone: 'info',
+            icon: '📡',
+            title: 'Sistem Durum Paneli',
+            subtitle: 'Anlık oyun, market ve bot durumu',
+            fields: overview(),
+            sections: [{
+                title: '🤖 Bot',
+                fields: [
+                    { name: '🟢 Durum', value: 'Çevrimiçi' },
+                    { name: '📶 Gecikme', value: `\`${ping}ms\` ${ping < 100 ? '🟢' : ping < 200 ? '🟡' : '🔴'}` },
+                    { name: '⏱️ Açılış', value: ui.ts(Date.now() - process.uptime() * 1000) },
+                ],
+            }],
+        }));
     },
 };

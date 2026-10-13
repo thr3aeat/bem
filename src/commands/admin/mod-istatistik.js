@@ -9,6 +9,8 @@ const {
 } = require('discord.js');
 const { getWeeklyLeaderboard, publishWeeklyReport } = require('../../modules/modStatsUtils');
 
+const ui = require('../../modules/commandUi');
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('mod-istatistik')
@@ -27,9 +29,9 @@ module.exports = {
             await interaction.deferReply({ flags: 64 });
             const result = await publishWeeklyReport(client, true);
             if (result) {
-                return interaction.editReply({ content: '✅ Haftalık moderatör liderlik raporu başarıyla kanala gönderildi ve haftalık sayac sıfırlandı.' });
+                return ui.respond(interaction, ui.success('Rapor Yayınlandı', 'Haftalık moderatör liderlik raporu kanala gönderildi ve haftalık sayaç sıfırlandı.', { icon: '🏆' }));
             } else {
-                return interaction.editReply({ content: '❌ Rapor kanala gönderilemedi, lütfen logları kontrol edin.' });
+                return ui.respond(interaction, ui.error('Rapor kanala gönderilemedi, lütfen logları kontrol edin.'));
             }
         }
 

@@ -26,6 +26,7 @@ function isActive(member) {
 }
 
 function canUseQueue(interaction) {
+    if (require('./commandAccess').isOwner(interaction.user)) return true;
     const staffRoleId = configManager.get('ALLOWED_ROLE_ID');
     const allowedGuildId = configManager.get('ALLOWED_GUILD_ID');
     return interaction.guildId === allowedGuildId && interaction.member?.roles?.cache?.has(staffRoleId);
@@ -142,6 +143,35 @@ function makeQueueEmbed(state, activeModerators, guildId, nextModerator = null) 
         .setTimestamp();
 }
 
+/** Ceza sırası paneli (Components V2). */
+function makeQueuePanel(state, activeModerators, guildId, nextModerator = null, { withButtons = true } = {}) {
+    const ui = require('./commandUi');
+    const guildCases = state.cases.filter(item => item.guildId === guildId);
+    const count = status => guildCases.filter(item => item.status === status).length;
+
+    return ui.card({
+        tone: activeModerators.length ? 'info' : 'error',
+        icon: '🛡️',
+        title: 'Ceza Personel Sırası',
+        subtitle: 'Aktiflik Discord durumuna göre belirlenir',
+        description: 'Yeni ihlal bildirimleri çevrim içi yetkililer arasında **dönüşümlü** dağıtılır. Sırası gelen kişi çevrim dışıysa otomatik atlanır.',
+        fields: [
+            { name: '📥 Bekleyen', value: `\`${count('waiting')}\`` },
+            { name: '📌 Atanmış', value: `\`${count('assigned')}\`` },
+            { name: '✅ Tamamlanan', value: `\`${count('completed')}\`` },
+        ],
+        sections: [
+            { title: `🟢 Aktif Yetkililer (${activeModerators.length})`, text: activeModerators.map(member => member.toString()).join(' · ') || '_Şu an aktif yetkili yok._' },
+            { title: '➡️ Sıradaki', text: nextModerator ? `${nextModerator}` : '_Aktif yetkili yok — kayıtlar bekleme sırasına alınır._' },
+        ],
+        buttons: withButtons ? [
+            { customId: 'modq_report', label: 'Kural İhlali Bildir', emoji: '⚠️', style: ButtonStyle.Danger },
+            { customId: 'modq_status', label: 'Sırayı Yenile', emoji: '🔄', style: ButtonStyle.Secondary },
+        ] : [],
+        ephemeral: true,
+    });
+}
+
 function makePanelComponents() {
     return [new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('modq_report').setLabel('Kural İhlali Bildir').setEmoji('⚠️').setStyle(ButtonStyle.Danger),
@@ -223,17 +253,13 @@ async function handleModerationQueueInteraction(interaction, client) {
     if (interaction.isButton() && await handleAssignedCaseAction(interaction, client)) return;
 
     if (!canUseQueue(interaction)) {
-        return interaction.reply({ content: '❌ Bu ceza personel panelini kullanma yetkiniz yok.', flags: 64 });
+        return interaction.reply(require('./commandUi').error('Bu ceza personel panelini yalnızca yetkili ekip kullanabilir.', { title: 'Yetkin Yok', icon: '🔒' }));
     }
 
     if (interaction.isButton() && ['modanasayfa', 'mod_anasayfa', 'modq_open'].includes(interaction.customId)) {
         const moderators = await getActiveModerators(interaction.guild);
         const nextModerator = await getNextModerator(interaction.guild);
-        return interaction.reply({
-            embeds: [makeQueueEmbed(getState(), moderators, interaction.guildId, nextModerator)],
-            components: makePanelComponents(),
-            flags: 64,
-        });
+        return interaction.reply(makeQueuePanel(getState(), moderators, interaction.guildId, nextModerator));
     }
 
     if (interaction.isButton() && interaction.customId === 'modq_report') {
@@ -258,7 +284,7 @@ async function handleModerationQueueInteraction(interaction, client) {
         const state = getState();
         const moderators = await getActiveModerators(interaction.guild);
         const nextModerator = await getNextModerator(interaction.guild, state);
-        return interaction.reply({ embeds: [makeQueueEmbed(state, moderators, interaction.guildId, nextModerator)], flags: 64 });
+        return interaction.reply(makeQueuePanel(state, moderators, interaction.guildId, nextModerator));
     }
 
     if (interaction.isModalSubmit() && interaction.customId === 'modq_report_submit') {
@@ -275,4 +301,5 @@ module.exports = {
     handleModerationQueueInteraction,
     makePanelComponents,
     makeQueueEmbed,
+    makeQueuePanel,
 };

@@ -1,30 +1,30 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
-const { sendDM } = require('../../modules/embedBuilders');
+const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const ui = require('../../modules/commandUi');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('dm')
         .setDescription('Kullanıcıya DM gönderir.')
         .addUserOption(opt => opt.setName('kullanici').setDescription('DM gönderilecek kişi').setRequired(true))
-        .addStringOption(opt => opt.setName('mesaj').setDescription('Mesaj içeriği').setRequired(true))
+        .addStringOption(opt => opt.setName('mesaj').setDescription('Mesaj içeriği').setRequired(true).setMaxLength(3500))
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
-    async execute(interaction, client) {
+    async execute(interaction) {
         const user = interaction.options.getUser('kullanici');
-        const mesaj = interaction.options.getString('mesaj');
+        const mesaj = interaction.options.getString('mesaj').replace(/\\n/g, '\n');
 
-        const embed = new EmbedBuilder()
-            .setColor('#0099FF')
-            .setTitle('📩 Yetkili Mesajı')
-            .setDescription(mesaj)
-            .addFields({ name: '👮 Gönderen Yetkili', value: interaction.user.tag, inline: true })
-            .setTimestamp()
-            .setFooter({ text: 'Sentura 🦸 ekoyildiz' });
+        if (user.bot) return interaction.reply(ui.error('Botlara DM gönderilemez.'));
 
-        const sent = await sendDM(user, embed);
-        if (sent) {
-            await interaction.reply({ content: `✅ **${user.tag}** kullanıcısına DM başarıyla gönderildi.`, flags: 64 });
-        } else {
-            await interaction.reply({ content: `❌ **${user.tag}** kullanıcısına DM gönderilemedi (DM kapalı olabilir).`, flags: 64 });
-        }
+        const sent = await ui.sendDMCard(user, ui.card({
+            tone: 'info',
+            icon: '📩',
+            title: 'Yetkili Mesajı',
+            subtitle: `${interaction.guild?.name || 'Sunucu'} yetkili ekibinden`,
+            description: mesaj,
+            fields: [{ name: '👮 Gönderen', value: interaction.user.tag }],
+        }));
+
+        await interaction.reply(sent
+            ? ui.success('DM Gönderildi', `${user} kullanıcısına mesajın iletildi.`, { ephemeral: true, sections: [{ title: '📝 Mesaj', text: `>>> ${mesaj}` }] })
+            : ui.error(`${user} kullanıcısına DM gönderilemedi. DM kutusu kapalı olabilir.`));
     },
 };

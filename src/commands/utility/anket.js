@@ -10,6 +10,8 @@ const {
     MessageFlags,
 } = require('discord.js');
 
+const ui = require('../../modules/commandUi');
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('anket')
@@ -65,9 +67,9 @@ module.exports = {
                 components: [container],
                 flags: MessageFlags.IsComponentsV2,
             });
-            await interaction.reply({ content: `✅ Anket <#${kanal.id}> kanalına gönderildi!`, flags: 64 });
+            await interaction.reply(ui.success('Anket Yayında', `Anket <#${kanal.id}> kanalına gönderildi.`, { icon: '📊', ephemeral: true }));
         } catch (error) {
-            await interaction.reply({ content: `❌ Anket gönderilemedi: ${error.message}`, flags: 64 });
+            await interaction.reply(ui.error(`Anket gönderilemedi: \`${error.message}\``));
         }
     },
 };

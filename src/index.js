@@ -6,6 +6,7 @@ const path = require('path');
 const { config, TOKEN } = require('./modules/constants');
 const { startApi } = require('./api');
 const { checkExpiredPunishments } = require('./modules/moderationUtils');
+const { prepareCommand } = require('./modules/commandAccess');
 
 const client = new Client({
     intents: [
@@ -64,7 +65,8 @@ const commandFiles = getFilesRecursively(commandsPath);
 for (const filePath of commandFiles) {
     const command = require(filePath);
     if ('data' in command && 'execute' in command) {
-        client.commands.set(command.data.name, command);
+        command.category = path.basename(path.dirname(filePath));
+        client.commands.set(command.data.name, prepareCommand(command));
     } else {
         console.warn(`[⚠️] The command at ${filePath} is missing a required "data" or "execute" property.`);
     }

@@ -1,4 +1,5 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const ui = require('../../modules/commandUi');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -11,6 +12,7 @@ module.exports = {
 
     async execute(interaction) {
         const kanal = interaction.options.getChannel('kanal') || interaction.channel;
+        if (!kanal.permissionOverwrites) return interaction.reply(ui.error('Bu kanal türünün izinleri düzenlenemez.'));
 
         try {
             await kanal.permissionOverwrites.edit(
@@ -18,9 +20,15 @@ module.exports = {
                 { SendMessages: false },
                 { reason: `Kanal kilitlendi | Yetkili: ${interaction.user.tag}` }
             );
-            await interaction.reply({ content: `🔒 <#${kanal.id}> kanalı kilitlendi.` });
+            await interaction.reply(ui.card({
+                tone: 'mod',
+                icon: '🔒',
+                title: 'Kanal Kilitlendi',
+                description: `<#${kanal.id}> kanalına artık **@everyone** mesaj gönderemez.`,
+                fields: [{ name: '👮 Yetkili', value: `${interaction.user}` }],
+            }));
         } catch (error) {
-            await interaction.reply({ content: `❌ Kanal kilitlenemedi: ${error.message}`, flags: 64 });
+            await interaction.reply(ui.error(`Kanal kilitlenemedi: \`${error.message}\``));
         }
     },
 };

@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const { addModCase } = require('../../modules/moderationUtils');
-const { buildDMEmbed, buildModEmbed, sendDM, sendLog } = require('../../modules/embedBuilders');
 const { config } = require('../../modules/constants');
+const ui = require('../../modules/commandUi');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -15,36 +15,28 @@ module.exports = {
         const reason = interaction.options.getString('sebep') || 'Sebep belirtilmedi';
         const member = await interaction.guild.members.fetch(user.id).catch(() => null);
 
-        if (!member) return interaction.reply({ content: '❌ Bu kullanıcı sunucuda bulunamadı!', flags: 64 });
+        if (!member) return interaction.reply(ui.error('Bu kullanıcı sunucuda bulunamadı.'));
 
         const muteRole = interaction.guild.roles.cache.get(config.MUTE_ROLE_ID);
-        if (!muteRole) return interaction.reply({ content: '❌ Susturulmuş rolü bulunamadı! Lütfen ayarlardan kontrol edin.', flags: 64 });
+        if (!muteRole) return interaction.reply(ui.error('Susturulmuş rolü bulunamadı. `MUTE_ROLE_ID` ayarını kontrol edin.'));
+        if (member.roles.cache.has(muteRole.id)) return interaction.reply(ui.warning('Bu kullanıcı zaten susturulmuş.'));
 
-        if (member.roles.cache.has(muteRole.id)) {
-            return interaction.reply({ content: '❌ Bu kullanıcı zaten susturulmuş!', flags: 64 });
-        }
-
+        await interaction.deferReply();
         const caseId = addModCase('MUTE', user.id, interaction.user.id, reason);
-        const dmEmbed = buildDMEmbed('mute', interaction.guild.name, interaction.user.tag, reason, `Vaka ID: #${caseId}`);
-        const dmSent = await sendDM(user, dmEmbed);
+        const dmSent = await ui.sendDMCard(user, ui.modDMCard('mute', interaction.guild.name, interaction.user.tag, reason, `Vaka ID: **#${caseId}**`));
 
         try {
             await member.roles.add(muteRole, `[Vaka #${caseId}] ${reason} | Yetkili: ${interaction.user.tag}`);
 
-            const embed = buildModEmbed(
-                `🔇 Susturma İşlemi | Vaka #${caseId}`,
-                '#FFA500',
-                [
-                    { name: '👤 Kullanıcı', value: `${user.tag}\n(${user.id})`, inline: true },
-                    { name: '👮 Yetkili', value: interaction.user.tag, inline: true },
-                    { name: '📋 Sebep', value: reason, inline: false },
-                    { name: '📩 DM Durumu', value: dmSent ? '✅ Gönderildi' : '❌ Gönderilemedi', inline: true }
-                ]
-            );
-            await interaction.reply({ embeds: [embed] });
-            await sendLog(client, embed);
+            const payload = ui.modCard({
+                action: 'mute', title: 'Kullanıcı Susturuldu', caseId, user,
+                moderator: interaction.user, reason, dmSent,
+                fields: [{ name: '⏱️ Süre', value: 'Süresiz' }],
+            });
+            await ui.respond(interaction, payload);
+            await ui.sendLogCard(client, payload);
         } catch (error) {
-            await interaction.reply({ content: `❌ Susturma işlemi başarısız: ${error.message}`, flags: 64 });
+            await ui.respond(interaction, ui.error(`Susturma işlemi başarısız: \`${error.message}\``));
         }
     },
 };

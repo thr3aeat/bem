@@ -14,6 +14,8 @@ const typeEmoji = {
     TEMPBAN: '⏳', TEMPMUTE: '⏰', UNBAN: '✅', UNMUTE: '🔊',
 };
 
+const ui = require('../../modules/commandUi');
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('modlog')
@@ -28,10 +30,7 @@ module.exports = {
         const cases = getModCases(user.id);
 
         if (cases.length === 0) {
-            return interaction.reply({
-                content: `✅ **${user.tag}** kullanıcısının herhangi bir ceza kaydı bulunmuyor.`,
-                flags: 64,
-            });
+            return interaction.reply(ui.success('Temiz Sicil', `${user} kullanıcısının herhangi bir ceza kaydı bulunmuyor.`, { icon: '🕊️', ephemeral: true }));
         }
 
         const caseLines = cases.reverse().slice(0, 10).map(c => {

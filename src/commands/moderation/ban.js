@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const { addModCase } = require('../../modules/moderationUtils');
-const { buildDMEmbed, buildModEmbed, sendDM, sendLog } = require('../../modules/embedBuilders');
+const ui = require('../../modules/commandUi');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -14,13 +14,14 @@ module.exports = {
         const reason = interaction.options.getString('sebep');
         const member = await interaction.guild.members.fetch(user.id).catch(() => null);
 
+        if (user.id === interaction.user.id) return interaction.reply(ui.error('Kendini banlayamazsın.'));
         if (member && !member.bannable) {
-            return interaction.reply({ content: '❌ Bu kullanıcıyı banlayamam! Yetkim yetmiyor olabilir.', flags: 64 });
+            return interaction.reply(ui.error('Bu kullanıcıyı banlayamam. Rolü benim rolümden yüksek olabilir.'));
         }
 
+        await interaction.deferReply();
         const caseId = addModCase('BAN', user.id, interaction.user.id, reason);
-        const dmEmbed = buildDMEmbed('ban', interaction.guild.name, interaction.user.tag, reason, `Vaka ID: #${caseId}`);
-        const dmSent = await sendDM(user, dmEmbed);
+        const dmSent = await ui.sendDMCard(user, ui.modDMCard('ban', interaction.guild.name, interaction.user.tag, reason, `Vaka ID: **#${caseId}**`));
 
         try {
             await interaction.guild.bans.create(user.id, {
@@ -28,20 +29,15 @@ module.exports = {
                 deleteMessageSeconds: 604800 // 7 gün
             });
 
-            const embed = buildModEmbed(
-                `🔨 Ban İşlemi | Vaka #${caseId}`,
-                '#FF0000',
-                [
-                    { name: '👤 Kullanıcı', value: `${user.tag}\n(${user.id})`, inline: true },
-                    { name: '👮 Yetkili', value: interaction.user.tag, inline: true },
-                    { name: '📋 Sebep', value: reason, inline: false },
-                    { name: '📩 DM Durumu', value: dmSent ? '✅ Gönderildi' : '❌ Gönderilemedi', inline: true }
-                ]
-            );
-            await interaction.reply({ embeds: [embed] });
-            await sendLog(client, embed);
+            const payload = ui.modCard({
+                action: 'ban', title: 'Kullanıcı Yasaklandı', caseId, user,
+                moderator: interaction.user, reason, dmSent,
+                fields: [{ name: '🧹 Mesaj Temizliği', value: 'Son 7 gün' }],
+            });
+            await ui.respond(interaction, payload);
+            await ui.sendLogCard(client, payload);
         } catch (error) {
-            await interaction.reply({ content: `❌ Banlama işlemi başarısız: ${error.message}`, flags: 64 });
+            await ui.respond(interaction, ui.error(`Banlama işlemi başarısız: \`${error.message}\``));
         }
     },
 };

@@ -1,15 +1,8 @@
-const {
-    SlashCommandBuilder,
-    PermissionFlagsBits,
-    ContainerBuilder,
-    TextDisplayBuilder,
-    SeparatorBuilder,
-    SeparatorSpacingSize,
-    MessageFlags,
-} = require('discord.js');
-const { getRobloxUser, getUserRankInGroup, setRobloxRank } = require('../../modules/robloxApi');
+const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { setRobloxRank } = require('../../modules/robloxApi');
 const { rankList } = require('../../modules/constants');
-const { buildModEmbed, sendLog } = require('../../modules/embedBuilders');
+const { rankChangeCard, resolveMember } = require('../../modules/rankCards');
+const ui = require('../../modules/commandUi');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -35,66 +28,21 @@ module.exports = {
         await interaction.deferReply();
 
         try {
-            const robloxUser = await getRobloxUser(username);
-            if (!robloxUser)
-                return interaction.editReply(`❌ **${username}** adında bir Roblox kullanıcısı bulunamadı.`);
+            const { robloxUser, rankData, error } = await resolveMember(username);
+            if (error) return ui.respond(interaction, error);
 
-            const currentRankData = await getUserRankInGroup(robloxUser.id);
-            if (currentRankData.rank === 0)
-                return interaction.editReply(`❌ **${robloxUser.name}** emniyet grubumuzda bulunmuyor.`);
+            const newRank = rankList.find(r => r.id === requestedId);
+            if (!newRank) return ui.respond(interaction, ui.error('Geçersiz rütbe seçildi. Listeden bir rütbe seç.'));
+            if (newRank.id === rankData.rank) return ui.respond(interaction, ui.warning(`Kullanıcı zaten **${newRank.name}** rütbesinde.`));
 
-            const newRankObj = rankList.find(r => r.id === requestedId);
-            if (!newRankObj) return interaction.editReply(`❌ Geçersiz rütbe ID'si seçildi.`);
+            const oldRank = rankList.find(r => r.id === rankData.rank) || { name: rankData.name };
+            await setRobloxRank(robloxUser.id, newRank.id);
 
-            const oldRankObj = rankList.find(r => r.id === currentRankData.rank) || { name: currentRankData.name };
-            await setRobloxRank(robloxUser.id, newRankObj.id);
-
-            const isTenzil    = newRankObj.id < currentRankData.rank;
-            const accentColor = isTenzil ? 0xFF4444 : 0x00FF88;
-            const baslik      = isTenzil ? '🔻 Rütbe Düşürme Başarılı' : '🆙 Rütbe Değişikliği Başarılı';
-
-            const container = new ContainerBuilder()
-                .setAccentColor(accentColor)
-                .addTextDisplayComponents(
-                    new TextDisplayBuilder().setContent(`## ${baslik}`)
-                )
-                .addSeparatorComponents(
-                    new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true)
-                )
-                .addTextDisplayComponents(
-                    new TextDisplayBuilder().setContent(
-                        `👤 **Kullanıcı** — ${robloxUser.name}\n` +
-                        `🆔 **Roblox ID** — ${robloxUser.id}\n` +
-                        `📊 **Eski Rütbe** — ${oldRankObj.name}\n` +
-                        `${isTenzil ? '🔻' : '🆙'} **Yeni Rütbe** — ${newRankObj.name}\n` +
-                        `👮 **Yetkili** — ${interaction.user.tag}`
-                    )
-                )
-                .addSeparatorComponents(
-                    new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(false)
-                )
-                .addTextDisplayComponents(
-                    new TextDisplayBuilder().setContent(
-                        `-# Sentura 🦸 ekoyildiz • <t:${Math.floor(Date.now() / 1000)}:R>`
-                    )
-                );
-
-            await interaction.editReply({
-                components: [container],
-                flags: MessageFlags.IsComponentsV2,
-            });
-
-            const logEmbed = buildModEmbed('👮 Rütbe Değişikliği', isTenzil ? '#FF0000' : '#00FF00', [
-                { name: '👤 Kullanıcı',  value: robloxUser.name,       inline: true },
-                { name: '📊 Eski Rütbe', value: oldRankObj.name,       inline: true },
-                { name: '🆙 Yeni Rütbe', value: newRankObj.name,       inline: true },
-                { name: '👮 Yetkili',    value: interaction.user.tag,  inline: true },
-                { name: '🆔 Roblox ID',  value: String(robloxUser.id), inline: true },
-            ]);
-            await sendLog(client, logEmbed);
-
+            const payload = rankChangeCard({ kind: 'degistir', robloxUser, oldRank, newRank, moderator: interaction.user });
+            await ui.respond(interaction, payload);
+            await ui.sendLogCard(client, payload);
         } catch (error) {
-            await interaction.editReply(`❌ Hata: ${error.message}`);
+            await ui.respond(interaction, ui.error(`Rütbe değiştirilemedi: \`${error.message}\``));
         }
     },
 };

@@ -1,36 +1,30 @@
 const { Events, Collection } = require('discord.js');
-const configManager = require('../modules/configManager');
+const { canUseCommand, isOwner } = require('../modules/commandAccess');
+const ui = require('../modules/commandUi');
 
 module.exports = {
     name: Events.InteractionCreate,
     async execute(interaction, client) {
         if (interaction.isChatInputCommand()) {
-            // Sunucu ve yetki kontrolü (Yalnızca belirtilen sunucuda ve rolde olanlar kullanabilir)
-            const allowedGuildId = configManager.get('ALLOWED_GUILD_ID', '1483482948320891074');
-            const allowedRoleId = configManager.get('ALLOWED_ROLE_ID', '1521519524812165280');
-
-            const roles = interaction.member?.roles;
-            const hasRole = roles && (
-                (typeof roles.cache?.has === 'function' && roles.cache.has(allowedRoleId)) ||
-                (Array.isArray(roles) && roles.includes(allowedRoleId))
-            );
-
-            if (interaction.guildId !== allowedGuildId || !hasRole) {
-                return interaction.reply({
-                    content: '❌ Bu botun komutlarını kullanma yetkiniz bulunmamaktadır.',
-                    flags: 64 // Ephemeral (sadece kullanıcıya görünür)
-                });
-            }
-
             const command = client.commands.get(interaction.commandName);
 
             if (!command) {
                 console.error(`[⚠️] Komut bulunamadı: ${interaction.commandName}`);
-                return;
+                return interaction.reply(ui.error('Bu komut artık mevcut değil veya henüz yüklenmedi.')).catch(() => {});
             }
 
-            // ─── Cooldown ────────────────────────────────────────────
+            // Sahip her yerde serbest; diğerleri yetkili rol + komutun gerektirdiği izin.
+            const access = canUseCommand(interaction, command);
+            if (!access.ok) {
+                const description = access.reason === 'permission'
+                    ? `Bu komut için şu izin(ler) gerekiyor:\n${access.missing.map(p => `> \`${ui.permissionLabel(p)}\``).join('\n')}`
+                    : 'Bu botun komutlarını yalnızca yetkili ekip kullanabilir.';
+                return interaction.reply(ui.error(description, { title: 'Yetkin Yok', icon: '🔒' }));
+            }
+
+            // ─── Cooldown (sahipler muaf) ────────────────────────────
             const { cooldowns } = client;
+            const skipCooldown = isOwner(interaction.user);
             if (!cooldowns.has(command.data.name)) {
                 cooldowns.set(command.data.name, new Collection());
             }
@@ -39,50 +33,41 @@ module.exports = {
             const timestamps = cooldowns.get(command.data.name);
             const cooldownMs = (command.cooldown ?? 3) * 1000;
 
-            if (timestamps.has(interaction.user.id)) {
+            if (!skipCooldown && timestamps.has(interaction.user.id)) {
                 const expiresAt = timestamps.get(interaction.user.id) + cooldownMs;
                 if (now < expiresAt) {
                     const expiredTimestamp = Math.round(expiresAt / 1000);
-                    return interaction.reply({
-                        content: `⏳ Bu komutu tekrar kullanmak için <t:${expiredTimestamp}:R> beklemelisin.`,
-                        flags: 64
-                    });
+                    return interaction.reply(ui.warning(
+                        `Bu komutu tekrar kullanmak için <t:${expiredTimestamp}:R> beklemelisin.`,
+                        { title: 'Biraz Yavaş', icon: '⏳' }
+                    ));
                 }
             }
 
-            timestamps.set(interaction.user.id, now);
-            setTimeout(() => timestamps.delete(interaction.user.id), cooldownMs);
+            if (!skipCooldown) {
+                timestamps.set(interaction.user.id, now);
+                setTimeout(() => timestamps.delete(interaction.user.id), cooldownMs);
+            }
 
             // ─── Çalıştır ────────────────────────────────────────────
             try {
                 await command.execute(interaction, client);
             } catch (error) {
                 console.error(`[❌] Komut hatası [${interaction.commandName}]:`, error);
-                const msg = '❌ Komut çalıştırılırken bir hata oluştu. Lütfen tekrar deneyin.';
+                const payload = ui.error(
+                    'Komut çalıştırılırken beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.',
+                    { fields: [{ name: '🧩 Detay', value: `\`${String(error?.message || error).slice(0, 180)}\`` }] }
+                );
                 if (interaction.replied || interaction.deferred) {
-                    await interaction.followUp({ content: msg, flags: 64 }).catch(() => {});
+                    await interaction.followUp(payload).catch(() => {});
                 } else {
-                    await interaction.reply({ content: msg, flags: 64 }).catch(() => {});
+                    await interaction.reply(payload).catch(() => {});
                 }
             }
 
         } else if (interaction.isAutocomplete()) {
-            // Sunucu ve yetki kontrolü (Autocomplete için de sınırla)
-            const allowedGuildId = configManager.get('ALLOWED_GUILD_ID', '1483482948320891074');
-            const allowedRoleId = configManager.get('ALLOWED_ROLE_ID', '1521519524812165280');
-
-            const roles = interaction.member?.roles;
-            const hasRole = roles && (
-                (typeof roles.cache?.has === 'function' && roles.cache.has(allowedRoleId)) ||
-                (Array.isArray(roles) && roles.includes(allowedRoleId))
-            );
-
-            if (interaction.guildId !== allowedGuildId || !hasRole) {
-                return;
-            }
-
             const command = client.commands.get(interaction.commandName);
-            if (!command) return;
+            if (!command?.autocomplete || !canUseCommand(interaction, command).ok) return;
             try {
                 await command.autocomplete(interaction);
             } catch (error) {

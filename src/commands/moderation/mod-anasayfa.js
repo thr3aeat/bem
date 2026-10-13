@@ -3,8 +3,7 @@ const {
     getActiveModerators,
     getNextModerator,
     getState,
-    makePanelComponents,
-    makeQueueEmbed,
+    makeQueuePanel,
 } = require('../../modules/moderationQueue');
 
 module.exports = {
@@ -15,10 +14,6 @@ module.exports = {
     async execute(interaction) {
         const activeModerators = await getActiveModerators(interaction.guild);
         const nextModerator = await getNextModerator(interaction.guild);
-        await interaction.reply({
-            embeds: [makeQueueEmbed(getState(), activeModerators, interaction.guildId, nextModerator)],
-            components: makePanelComponents(),
-            flags: 64,
-        });
+        await interaction.reply(makeQueuePanel(getState(), activeModerators, interaction.guildId, nextModerator));
     },
 };

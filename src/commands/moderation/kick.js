@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const { addModCase } = require('../../modules/moderationUtils');
-const { buildDMEmbed, buildModEmbed, sendDM, sendLog } = require('../../modules/embedBuilders');
+const ui = require('../../modules/commandUi');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -14,33 +14,25 @@ module.exports = {
         const reason = interaction.options.getString('sebep');
         const member = await interaction.guild.members.fetch(user.id).catch(() => null);
 
-        if (!member) return interaction.reply({ content: '❌ Bu kullanıcı sunucuda bulunamadı!', flags: 64 });
-        if (!member.kickable) return interaction.reply({ content: '❌ Bu kullanıcıyı atamam! (Yetki yetersiz)', flags: 64 });
+        if (!member) return interaction.reply(ui.error('Bu kullanıcı sunucuda bulunamadı.'));
+        if (user.id === interaction.user.id) return interaction.reply(ui.error('Kendini atamazsın.'));
+        if (!member.kickable) return interaction.reply(ui.error('Bu kullanıcıyı atamam. Rolü benim rolümden yüksek olabilir.'));
 
+        await interaction.deferReply();
         const caseId = addModCase('KICK', user.id, interaction.user.id, reason);
-
-        const dmEmbed = buildDMEmbed('kick', interaction.guild.name, interaction.user.tag, reason,
-            `Vaka ID: #${caseId}`
-        );
-        const dmSent = await sendDM(user, dmEmbed);
+        const dmSent = await ui.sendDMCard(user, ui.modDMCard('kick', interaction.guild.name, interaction.user.tag, reason, `Vaka ID: **#${caseId}**`));
 
         try {
             await member.kick(`[#${caseId}] ${reason} | Yetkili: ${interaction.user.tag}`);
 
-            const embed = buildModEmbed(
-                `👢 Kullanıcı Atıldı | Vaka #${caseId}`,
-                '#FF6600',
-                [
-                    { name: '👤 Kullanıcı', value: `${user.tag}\n(${user.id})`, inline: true },
-                    { name: '👮 Yetkili', value: interaction.user.tag, inline: true },
-                    { name: '📋 Sebep', value: reason, inline: false },
-                    { name: '📩 DM Durumu', value: dmSent ? '✅ Gönderildi' : '❌ Gönderilemedi', inline: true }
-                ]
-            );
-            await interaction.reply({ embeds: [embed] });
-            await sendLog(client, embed);
+            const payload = ui.modCard({
+                action: 'kick', title: 'Kullanıcı Atıldı', caseId, user,
+                moderator: interaction.user, reason, dmSent,
+            });
+            await ui.respond(interaction, payload);
+            await ui.sendLogCard(client, payload);
         } catch (error) {
-            await interaction.reply({ content: `❌ Atma işlemi başarısız: ${error.message}`, flags: 64 });
+            await ui.respond(interaction, ui.error(`Atma işlemi başarısız: \`${error.message}\``));
         }
     },
 };

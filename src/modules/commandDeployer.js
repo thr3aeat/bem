@@ -2,6 +2,7 @@ const { REST, Routes } = require('discord.js');
 const { config, TOKEN } = require('./constants');
 const fs = require('fs');
 const path = require('path');
+const { prepareCommand } = require('./commandAccess');
 
 async function deployCommands() {
     const commands = [];
@@ -26,7 +27,7 @@ async function deployCommands() {
     for (const filePath of commandFiles) {
         const command = require(filePath);
         if ('data' in command && 'execute' in command) {
-            commands.push(command.data.toJSON());
+            commands.push(prepareCommand(command).data.toJSON());
         }
     }
 
