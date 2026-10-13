@@ -49,3 +49,9 @@ test('hata kartı Components V2 + ephemeral olarak oluşturulur', () => {
     assert.equal(payload.components[0].toJSON().type, 17);
     assert.equal(ui.forEdit(payload).flags, 1 << 15);
 });
+
+test('sunucu sahibi rol olmadan da komutları kullanabilir', () => {
+    const i = interaction({ userId: '42', guildId: 'baska' });
+    i.guild = { ownerId: '42' };
+    assert.deepEqual(canUseCommand(i, makeCommand()), { ok: true });
+});

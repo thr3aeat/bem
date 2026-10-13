@@ -19,7 +19,13 @@ module.exports = {
                 const description = access.reason === 'permission'
                     ? `Bu komut için şu izin(ler) gerekiyor:\n${access.missing.map(p => `> \`${ui.permissionLabel(p)}\``).join('\n')}`
                     : 'Bu botun komutlarını yalnızca yetkili ekip kullanabilir.';
-                return interaction.reply(ui.error(description, { title: 'Yetkin Yok', icon: '🔒' }));
+                console.warn(`[🔒] Yetki reddi: /${interaction.commandName} | ${interaction.user.tag} (${interaction.user.id}) | sunucu ${interaction.guildId} | sebep ${access.reason}`);
+                return interaction.reply(ui.error(description, {
+                    title: 'Yetkin Yok',
+                    icon: '🔒',
+                    fields: [{ name: '🆔 Kullanıcı ID', value: `\`${interaction.user.id}\`` }],
+                    footer: 'Bot sahibiysen bu ID\'yi BOT_OWNER_IDS ayarına ekle',
+                }));
             }
 
             // ─── Cooldown (sahipler muaf) ────────────────────────────

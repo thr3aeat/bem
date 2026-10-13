@@ -50,13 +50,19 @@ function missingPermissions(interaction, command) {
     return perms.missing(command.requiredPermissions);
 }
 
+function isGuildOwner(interaction) {
+    const ownerId = interaction.guild?.ownerId;
+    return Boolean(ownerId) && ownerId === interaction.user?.id;
+}
+
 /** @returns {{ ok: true } | { ok: false, reason: 'role' | 'permission', missing?: string[] }} */
 function canUseCommand(interaction, command) {
-    if (isOwner(interaction.user)) return { ok: true };
+    // Bot sahibi ve komutun kullanıldığı sunucunun sahibi her zaman serbest.
+    if (isOwner(interaction.user) || isGuildOwner(interaction)) return { ok: true };
     if (!hasStaffRole(interaction)) return { ok: false, reason: 'role' };
     const missing = missingPermissions(interaction, command);
     if (missing.length) return { ok: false, reason: 'permission', missing };
     return { ok: true };
 }
 
-module.exports = { isOwner, getOwnerIds, prepareCommand, hasStaffRole, canUseCommand };
+module.exports = { isOwner, isGuildOwner, getOwnerIds, prepareCommand, hasStaffRole, canUseCommand };
